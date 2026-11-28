@@ -880,6 +880,7 @@ public partial class TripsController : BaseApiController
     /// <response code="400">If trip is not public or user owns the trip</response>
     /// <response code="401">If API token is missing or invalid</response>
     /// <response code="404">If trip does not exist</response>
+    /// <response code="409">If concurrent changes prevented a complete clone</response>
     [HttpPost("{id}/clone")]
     public async Task<IActionResult> CloneTrip(Guid id)
     {
@@ -901,6 +902,8 @@ public partial class TripsController : BaseApiController
                 return BadRequest(new { error = "This trip is not public and cannot be cloned" });
             if (clone.Status == TripCloneStatus.AlreadyOwned)
                 return BadRequest(new { error = "You already own this trip" });
+            if (clone.Status == TripCloneStatus.Contention)
+                return Conflict(new { code = "mutation-contention", error = "Concurrent Trip changes prevented the copy. Try again." });
             _logger.LogDebug("User {UserId} cloned trip {SourceTripId} to new trip {ClonedTripId}",
                 user.Id, id, clone.ClonedTripId);
 

@@ -1,10 +1,11 @@
+import { createHash } from 'node:crypto';
 import { expect, test, type Page } from '@playwright/test';
 import { loadSharedLayoutConfig } from './sharedLayoutConfig';
 
 /** Exposes actual durable state to bound asynchronous tab steps without sleeping or changing custody. */
 async function notesGeneration(page: Page, tripId: string): Promise<{ desired: string; original: string | null } | null> {
   return page.evaluate(id => new Promise((resolve, reject) => {
-    const connection = indexedDB.open('wayfarer-trip-metadata', 1);
+    const connection = indexedDB.open('wayfarer-trip-metadata', 2);
     connection.onerror = () => reject(connection.error);
     connection.onsuccess = () => {
       const db = connection.result;
@@ -86,9 +87,25 @@ test('Trip receipts recover from My Trips without replacing a newer Notes genera
   await save(page).click();
   await expect(page.getByText('Recover the save before sending overlapping changes.', { exact: false }).first()).toBeVisible();
   expect(writes).toHaveLength(2); // Permit and first PATCH.
+  const contract = 'trip-metadata-receipt-2';
+  const subject = await page.locator('#trip-editor-app').getAttribute('data-account-id');
+  const body = JSON.stringify({ receiptContract: contract,
+    expected: { notesHtml: '<p>Submitted B</p>' }, changes: { notesHtml: '<p>Fresh owner D</p>' } });
+  const hash = createHash('sha256');
+  for (const value of [contract, 'metadata', 'web', subject!, tripId, body]) {
+    const bytes = Buffer.from(value);
+    const prefix = Buffer.alloc(4);
+    prefix.writeUInt32BE(bytes.length);
+    hash.update(prefix).update(bytes);
+  }
+  const issued = await page.request.post(metadata + '/operations', {
+    headers: { RequestVerificationToken: token }, data: { contract, requestDigest: 'sha256:' + hash.digest('hex') }
+  });
+  expect(issued.ok(), await issued.text()).toBeTruthy();
+  const permit = await issued.json();
   const changed = await page.request.patch(metadata, {
-    headers: { RequestVerificationToken: token },
-    data: { expected: { notesHtml: '<p>Submitted B</p>' }, changes: { notesHtml: '<p>Fresh owner D</p>' } }
+    headers: { RequestVerificationToken: token, 'Content-Type': 'application/json', 'X-Wayfarer-Trip-Attempt': permit.proof },
+    data: body
   });
   expect(changed.ok(), await changed.text()).toBeTruthy();
 
@@ -101,7 +118,7 @@ test('Trip receipts recover from My Trips without replacing a newer Notes genera
 
   const ownerRead = Promise.withResolvers<void>();
   const continueRead = Promise.withResolvers<void>();
-  await recovery.route(`**${metadata}`, async route => {
+  await recovery.route(url => url.pathname === metadata, async route => {
     const reply = await route.fetch();
     ownerRead.resolve();
     await continueRead.promise;

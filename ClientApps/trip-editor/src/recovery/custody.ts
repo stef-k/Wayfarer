@@ -1,9 +1,9 @@
-import type { EditorMetadataOriginalValues, EditorTripMetadata } from '../types';
+import type { EditorMetadataOriginalValues, EditorTag, EditorTripMetadata } from '../types';
 import type { MetadataDraft } from '../components/metadataDraft';
 import type { Attempt, Evidence, Permit, TerminalState } from './receiptApi';
 
 export type SettingsField = keyof EditorMetadataOriginalValues | 'tags' | 'shareProgressEnabled';
-export type DraftValue = { desired: Partial<MetadataDraft>; baseline: Partial<MetadataDraft>; original?: unknown };
+export type DraftValue = { desired: Partial<MetadataDraft>; baseline: Partial<MetadataDraft>; original?: unknown; policyOriginal?: unknown };
 export type DraftFields = Partial<Record<SettingsField, DraftValue>>;
 export type DraftEntry = DraftValue & { generation: number };
 export type DraftEntries = Partial<Record<SettingsField, DraftEntry>>;
@@ -60,17 +60,26 @@ async function access<T>(account: string, tripId: string, update: (row: Custody)
   }
 }
 
-/** The origin and authenticated subject partition custody together. */
+/** Upgrades the existing store in one transaction. Existing records keep their frozen v1 wire identity. */
 function openCustody(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open('wayfarer-trip-metadata', 1);
-    request.onupgradeneeded = () => {
+    const request = indexedDB.open('wayfarer-trip-metadata', 2);
+    let blocked = false;
+    request.onupgradeneeded = event => {
+      if (event.oldVersion !== 0) return;
       const store = request.result.createObjectStore('drafts', { keyPath: ['account', 'tripId'] });
       store.createIndex('account', 'account');
     };
-    request.onsuccess = () => resolve(request.result);
+    request.onsuccess = () => {
+      request.result.onversionchange = () => request.result.close();
+      if (blocked) request.result.close();
+      else resolve(request.result);
+    };
     request.onerror = () => reject(request.error);
-    request.onblocked = () => reject(new Error('Trip draft storage is blocked'));
+    request.onblocked = () => {
+      blocked = true;
+      reject(new Error('Trip draft storage is blocked'));
+    };
   });
 }
 
@@ -79,9 +88,35 @@ function requireGeneration(row: Custody, generation: number): void {
   if (row.generation !== generation) throw new CustodyRefusal('stale');
 }
 
+/** Publication compares policy and overlaps with sharing, including its derived privacy effect. */
+export function overlapping(fields: readonly string[]): SettingsField[] {
+  const effects = new Set(fields.map(asField));
+  if (effects.has('isPublic')) {
+    effects.add('shareProgressEnabled');
+    effects.add('contributionPolicy');
+  }
+  return [...effects];
+}
+
 /** Includes pending effects and terminal observations still waiting for a fresh owner read. */
 export const heldFields = (row: Custody): SettingsField[] => row.attempts.flatMap(attempt =>
-  Object.keys(attempt.submitted).map(asField));
+  overlapping(Object.keys(attempt.submitted)));
+
+/** Compares the published identity set independent of display order and names. */
+export const tagBase = (tags: EditorTag[]): { id: string; slug: string }[] =>
+  tags.map(({ id, slug }) => ({ id, slug })).sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+
+/** Sharing depends on both publication and the stored sharing flag. */
+export const sharingBase = (snapshot: EditorTripMetadata) => ({
+  isPublic: snapshot.isPublic, shareProgressEnabled: snapshot.shareProgressEnabled
+});
+
+/** Keeps comparisons independent of display values, including nullable coordinates. */
+export function ownerOriginal(current: EditorTripMetadata, field: SettingsField): unknown {
+  if (field === 'tags') return current.tags && tagBase(current.tags);
+  if (field === 'shareProgressEnabled') return sharingBase(current);
+  return current.originalValues?.[field];
+}
 
 export const readCustody = (account: string, tripId: string): Promise<Custody> =>
   access(account, tripId, next => ({ next, value: next }), false);
@@ -109,7 +144,7 @@ export const saveDraft = (view: Custody, fields: DraftFields, current?: EditorTr
     let modified = Object.keys(fields).length !== Object.keys(row.fields).length;
     for (const [key, value] of Object.entries(fields)) {
       const prior = row.fields[asField(key)];
-      const entry = prior && same(value, { desired: prior.desired, baseline: prior.baseline, original: prior.original })
+      const entry = prior && same(value, { desired: prior.desired, baseline: prior.baseline, original: prior.original, policyOriginal: prior.policyOriginal })
         ? prior : { ...value, generation: row.generation + 1 };
       nextFields[asField(key)] = entry;
       modified ||= entry !== prior;
@@ -126,7 +161,8 @@ export const saveDraft = (view: Custody, fields: DraftFields, current?: EditorTr
 export const authorize = (view: Custody, fields: string[], frozen?: { permit: Permit; body: string }): Promise<Attempt | null> =>
   access(view.account, view.tripId, row => {
     requireGeneration(row, view.generation);
-    if (heldFields(row).some(key => fields.includes(key))) throw new CustodyRefusal('held');
+    const effects = overlapping(fields);
+    if (heldFields(row).some(key => effects.includes(key))) throw new CustodyRefusal('held');
     if (row.review.some(key => fields.includes(key))) throw new CustodyRefusal('review');
     if (!frozen) return { next: row, value: null };
     const submitted: Record<string, number> = {};
@@ -135,7 +171,8 @@ export const authorize = (view: Custody, fields: string[], frozen?: { permit: Pe
       if (!entry) throw new CustodyRefusal('stale');
       submitted[key] = entry.generation;
     }
-    const attempt = { ...frozen, submitted };
+    const bases = Object.fromEntries(fields.map(key => [key, row.fields[asField(key)]]));
+    const attempt = { ...frozen, submitted, bases };
     row.attempts.push(attempt);
     return { next: row, value: attempt };
   });
@@ -165,13 +202,13 @@ export const reconcile = (view: Custody, current: EditorTripMetadata): Promise<{
     const observed = new Set(view.attempts.filter(attempt => view.outcomes[attempt.permit.operationId])
       .map(attempt => attempt.permit.operationId));
     const blocked = new Set(row.attempts.filter(attempt => !observed.has(attempt.permit.operationId))
-      .flatMap(attempt => Object.keys(attempt.submitted)));
+      .flatMap(attempt => overlapping(Object.keys(attempt.submitted))));
     const reconciled = new Set<string>();
     for (const attempt of row.attempts) {
       const id = attempt.permit.operationId;
       const result = row.outcomes[id];
       if (!observed.has(id) || !result) continue;
-      if (Object.keys(result.submitted).some(key => blocked.has(key))) continue;
+      if (overlapping(Object.keys(result.submitted)).some(key => blocked.has(key))) continue;
       if (result.evidence.state === 'applied' || result.evidence.state === 'checkedNoOp') {
         for (const [key, generation] of Object.entries(result.submitted)) {
           if (row.fields[asField(key)]?.generation !== generation) continue;
@@ -190,9 +227,13 @@ export const reconcile = (view: Custody, current: EditorTripMetadata): Promise<{
 
 /** Flags changed owner originals only when relevant effects have settled. */
 function fieldsForReview(row: Custody, current: EditorTripMetadata, blocked: ReadonlySet<string>): SettingsField[] {
-  const originals = current.originalValues;
-  return Object.entries(row.fields).filter(([key, entry]) => originals && Object.hasOwn(originals, key) &&
-    !blocked.has(key) && !same(entry.original, originals[key as keyof EditorMetadataOriginalValues])).map(([key]) => asField(key));
+  return Object.entries(row.fields).filter(([key, entry]) => {
+    if (blocked.has(key)) return false;
+    const original = ownerOriginal(current, asField(key));
+    if (original === undefined || entry.original === undefined || !same(entry.original, original)) return true;
+    return key === 'isPublic' && entry.desired.isPublic === true &&
+      !same(entry.policyOriginal, current.originalValues?.contributionPolicy);
+  }).map(([key]) => asField(key));
 }
 
 /** Updates only explicitly adopted comparison bases, preserving the desired values. */

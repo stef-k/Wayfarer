@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { message as localize } from '../../../../wwwroot/js/localization/messages.js';
-import type { EditorMetadataOriginalValues, EditorTripMetadata } from '../types';
-import type { SettingsField } from './custody';
+import type { EditorTripMetadata } from '../types';
+import { ownerOriginal, type SettingsField } from './custody';
 
 defineProps<{ current: EditorTripMetadata; fields: SettingsField[]; disabled?: boolean }>();
 defineEmits<{ adopt: [field: SettingsField] }>();
@@ -17,13 +17,16 @@ const label = (field: SettingsField): string => {
     case 'isPublic': return localize('Editor.PublicTrip', 'Public trip');
     case 'contributionPolicy': return localize('Editor.PublicationPolicy', 'Publication policy');
     case 'credits': return localize('Editor.SourcesCredits', 'Sources & credits');
-    default: return field;
+    case 'tags': return localize('Editor.Tags', 'Tags');
+    case 'shareProgressEnabled': return localize('Editor.ShareProgress', 'Share progress');
   }
 };
 
 /** Shows the exact published value as text, keeping null distinct from Clear. */
 function valueText(current: EditorTripMetadata, field: SettingsField): string {
-  const value = current.originalValues?.[field as keyof EditorMetadataOriginalValues];
+  const value = field === 'tags' ? current.tags?.map(tag => tag.name)
+    : field === 'isPublic' ? { isPublic: current.isPublic, contributionPolicy: current.contributionPolicy }
+    : ownerOriginal(current, field);
   if (value === null) return localize('Editor.ReceiptNull', 'Not set');
   if (value === '') return localize('Editor.ReceiptEmpty', 'Empty');
   return typeof value === 'string' ? value : JSON.stringify(value) ?? '';

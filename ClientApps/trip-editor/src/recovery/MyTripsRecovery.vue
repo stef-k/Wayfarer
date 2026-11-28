@@ -57,6 +57,11 @@ async function adopt(entry: Recovery, field: SettingsField): Promise<void> {
         {{ localize('Editor.ReceiptDraftNotes', 'Retained Notes draft') }}
       </p>
       <pre v-if="entry.row.fields.notesHtml" class="text-wrap text-break">{{ entry.row.fields.notesHtml.desired.notesHtml }}</pre>
+      <p v-if="entry.row.fields.tags">{{ localize('Editor.Tags', 'Tags') }} · {{ entry.row.fields.tags.desired.tags?.join(', ') }}</p>
+      <p v-if="entry.row.fields.shareProgressEnabled">
+        {{ localize('Editor.ShareProgress', 'Share progress') }} ·
+        {{ entry.row.fields.shareProgressEnabled.desired.shareProgressEnabled ? localize('Editor.Enabled', 'Enabled') : localize('Editor.Disabled', 'Disabled') }}
+      </p>
       <p v-for="state in new Set([...entry.settled ?? [], ...knownHistory(entry.row)])" :key="state" role="status">{{ receiptStatus(state) }}</p>
       <ReceiptComparison v-if="entry.current" :current="entry.current" :fields="entry.row.review"
         :disabled="!!busy" @adopt="field => adopt(entry, field)" />

@@ -11,6 +11,7 @@ internal sealed record TripMetadataIdentity(string Contract, string SubjectId, s
     Guid TripId, string RequestDigest, Guid OperationId, DateTime ExecuteBeforeUtc)
 {
     internal const string Version = "trip-metadata-receipt-1";
+    internal const string Version2 = "trip-metadata-receipt-2";
     internal const string OperationKind = "metadata";
     internal const string ProofHeader = "X-Wayfarer-Trip-Attempt";
 
@@ -20,17 +21,21 @@ internal sealed record TripMetadataIdentity(string Contract, string SubjectId, s
 
     /// <summary>Frames the actual transport bytes without JSON parsing or normalization.</summary>
     internal static string Digest(string subject, string adapter, Guid tripId, byte[] body) =>
-        Hash(Utf8(Version), Utf8(OperationKind), Utf8(adapter), Utf8(subject), Utf8(tripId.ToString("D")), body);
+        Digest(Version, OperationKind, subject, adapter, tripId, body);
+
+    /// <summary>Frames version and route identity with the exact body bytes.</summary>
+    internal static string Digest(string contract, string kind, string subject, string adapter, Guid tripId, byte[] body) =>
+        Hash(Utf8(contract), Utf8(kind), Utf8(adapter), Utf8(subject), Utf8(tripId.ToString("D")), body);
 
     /// <summary>Hashes one exact nullable published comparison value.</summary>
     internal static string FieldDigest(string field, string? value) =>
         Hash(Utf8("trip-metadata-result-1"), Utf8(field), Utf8(value == null ? "n" : "s"), Utf8(value ?? ""));
 
     /// <summary>Encodes one text frame without a BOM.</summary>
-    private static byte[] Utf8(string value) => Encoding.UTF8.GetBytes(value);
+    internal static byte[] Utf8(string value) => Encoding.UTF8.GetBytes(value);
 
     /// <summary>Hashes four-byte unsigned big-endian lengths followed by the frame bytes.</summary>
-    private static string Hash(params byte[][] frames)
+    internal static string Hash(params byte[][] frames)
     {
         using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
         Span<byte> length = stackalloc byte[4];
@@ -72,6 +77,22 @@ internal sealed record TripMetadataEvidence(string State, string HistoricalOutco
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Code { get; init; }
 
+    /// <summary>Field guidance on a v2 validation refusal, preserved for replay and lookup.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Dictionary<string, string[]>? Errors { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public TripPrivacyEffect? PrivacyEffect { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public TripTagEffect? TagResult { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public TripSharingEffect? SharingResult { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public TripSavedView? SavedView { get; init; }
+
     /// <summary>Combines mandatory correlation and bounded evidence without exposing a private Trip.</summary>
     internal Dictionary<string, object?> Envelope(TripMetadataIdentity identity)
     {
@@ -80,4 +101,24 @@ internal sealed record TripMetadataEvidence(string State, string HistoricalOutco
             envelope.Add(property.Name, property.Value);
         return envelope;
     }
+}
+
+/// <summary>Stored projection of a privacy selection and its derived effect.</summary>
+internal sealed record TripPrivacyEffect(bool ShareProgressEnabled, bool DisabledShareProgress);
+
+/// <summary>Stored publication and sharing at the operation's commit.</summary>
+internal sealed record TripSharingEffect(bool IsPublic, bool ShareProgressEnabled);
+
+/// <summary>Historical saved view including independently nullable coordinates.</summary>
+internal sealed record TripSavedView(Models.Dtos.TripMetadataCenter Center, int? Zoom);
+
+/// <summary>Exact catalogue identity of a tag or join.</summary>
+internal sealed record TripTagIdentity(Guid Id, string Slug);
+
+/// <summary>Actual join and catalogue effects, with resulting membership at commit.</summary>
+internal sealed record TripTagEffect(TripTagIdentity[] AddedJoins, TripTagIdentity[] RemovedJoins,
+    TripTagIdentity[] CreatedCatalogue, TripTagIdentity[] DeletedCatalogue, Models.Dtos.TripTagDto[] ResultingTags)
+{
+    /// <summary>Whether the operation changed a join or catalogue row.</summary>
+    internal bool Applied => AddedJoins.Length + RemovedJoins.Length + CreatedCatalogue.Length + DeletedCatalogue.Length != 0;
 }

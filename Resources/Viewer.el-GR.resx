@@ -483,6 +483,9 @@
   <data name="Viewer.CloneSignIn" xml:space="preserve">
     <value>Συνδεθείτε για να αντιγράψετε το ταξίδι.</value>
   </data>
+  <data name="Viewer.CloneContention" xml:space="preserve">
+    <value>Το ταξίδι άλλαξε κατά την αντιγραφή. Δοκιμάστε ξανά.</value>
+  </data>
   <data name="Viewer.CloneFailed" xml:space="preserve">
     <value>Η αντιγραφή του ταξιδιού απέτυχε. Δοκιμάστε ξανά.</value>
   </data>
@@ -501,4 +504,8 @@
   <data name="Viewer.ClonePartial" xml:space="preserve">
     <value>Το ταξίδι «{0}» αντιγράφηκε στον λογαριασμό σας. Τα εξώφυλλα και οι ενσωματωμένες εικόνες παραλείφθηκαν επειδή δεν υπήρχε άδεια μεταβίβασης. Επιλέξτε εικόνες με άδεια για το αντίγραφό σας.</value>
   </data>
+  <data name="Viewer.ShareRetainedChoice" xml:space="preserve"><value>Επιλογή κοινοποίησης που διατηρήθηκε ({0}).</value></data>
+  <data name="Viewer.ShareCurrentState" xml:space="preserve"><value>Τρέχουσα ορατότητα ταξιδιού {0}, κοινοποίηση {1}.</value></data>
+  <data name="Viewer.ShareAdoptCurrent" xml:space="preserve"><value>Χρήση τρεχουσών ρυθμίσεων κοινοποίησης ως βάση σύγκρισης</value></data>
+  <data name="Viewer.ShareSaveChoice" xml:space="preserve"><value>Αποθήκευση επιλογής κοινοποίησης</value></data>
 </root>

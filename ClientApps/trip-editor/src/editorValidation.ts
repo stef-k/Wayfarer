@@ -47,6 +47,9 @@ const validationDetails = new Map<string, string>([
   ["The route coordinate does not match the endpoint anchor.", "Editor.ValidationEndpointCoordinates"],
   ["Tag value cannot be blank.", "Editor.ValidationTagBlank"],
   ["Tag uses unsupported characters or is too long.", "Editor.ValidationTagFormat"],
+  ["Tag cannot be empty.", "Editor.ValidationTagBlank"],
+  ["Tag too long (max 64 characters).", "Editor.ValidationTagFormat"],
+  ["Tags may include letters, numbers, spaces, hyphen, apostrophe.", "Editor.ValidationTagFormat"],
   ["Search query is required.", "Editor.ValidationSearchRequired"],
   ["Search query must be at least 3 characters.", "Editor.ValidationSearchMinimum"],
   ["Search query must be at most 200 characters.", "Editor.ValidationSearchMaximum"],
@@ -67,7 +70,7 @@ export const editorFieldError = (error: string): string => {
   };
   const key = validationDetails.get(error) ?? fields[error];
   if (key) return message(key, error);
-  const tagLimit = /^A trip can have up to (\d+) tags\.$/.exec(error);
+  const tagLimit = /^(?:A trip can have up to|You can add up to) (\d+) tags(?: per trip)?\.$/.exec(error);
   if (tagLimit) return message('Editor.ValidationTagLimit', 'A trip can have up to {0} tags.', number(Number(tagLimit[1])));
   return message('Editor.InvalidField', 'Review the value in this field.');
 };

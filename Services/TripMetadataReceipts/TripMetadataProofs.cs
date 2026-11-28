@@ -16,7 +16,7 @@ internal sealed class TripMetadataProofs(IDataProtectionProvider provider, IKeyM
     {
         try
         {
-            var bytes = Protector(authority).Protect(JsonSerializer.SerializeToUtf8Bytes(new BoundPermit(authority, identity)));
+            var bytes = Protector(authority, identity.Contract).Protect(JsonSerializer.SerializeToUtf8Bytes(new BoundPermit(authority, identity)));
             var key = FindKey(bytes);
             var now = DateTimeOffset.UtcNow;
             if (key is { IsRevoked: false } && key.ActivationDate <= now && now < key.ExpirationDate)
@@ -35,13 +35,24 @@ internal sealed class TripMetadataProofs(IDataProtectionProvider provider, IKeyM
             // Consult persisted key metadata even if this node's protection provider has a warm cache.
             if (FindKey(bytes) is { IsRevoked: false })
             {
-                var permit = JsonSerializer.Deserialize<BoundPermit>(Protector(authority).Unprotect(bytes));
-                if (permit?.Authority == authority && permit.Identity.Contract == TripMetadataIdentity.Version)
-                    return permit.Identity;
+                return Unprotect(bytes, authority, TripMetadataIdentity.Version)
+                    ?? Unprotect(bytes, authority, TripMetadataIdentity.Version2)
+                    ?? throw new CryptographicException("Trip permit version mismatch.");
             }
         }
         catch (Exception error) when (IsKeyFailure(error) || error is FormatException or JsonException) { }
         throw new TripMetadataMutationRejected(409, "trip-attempt-unverifiable", "The Trip save proof cannot be verified.");
+    }
+
+    /// <summary>Reads one purpose without letting a v1 verification failure mask a v2 proof.</summary>
+    private TripMetadataIdentity? Unprotect(byte[] bytes, Guid authority, string contract)
+    {
+        try
+        {
+            var permit = JsonSerializer.Deserialize<BoundPermit>(Protector(authority, contract).Unprotect(bytes));
+            return permit?.Authority == authority && permit.Identity.Contract == contract ? permit.Identity : null;
+        }
+        catch (CryptographicException) { return null; }
     }
 
     /// <summary>Accepts the documented key-ring payload header and reads the exact emitted key ID.</summary>
@@ -54,8 +65,9 @@ internal sealed class TripMetadataProofs(IDataProtectionProvider provider, IKeyM
     }
 
     /// <summary>Separates Trip permit formats and continuous database authorities from other protectors.</summary>
-    private IDataProtector Protector(Guid authority) =>
-        provider.CreateProtector("Wayfarer.TripMetadata.Permit.v1", authority.ToString("D"));
+    private IDataProtector Protector(Guid authority, string contract) =>
+        provider.CreateProtector(contract == TripMetadataIdentity.Version ? "Wayfarer.TripMetadata.Permit.v1"
+            : "Wayfarer.TripMetadata.Permit.v2", authority.ToString("D"));
 
     /// <summary>Storage or key-ring failures carry no historical result.</summary>
     private static bool IsKeyFailure(Exception error) =>

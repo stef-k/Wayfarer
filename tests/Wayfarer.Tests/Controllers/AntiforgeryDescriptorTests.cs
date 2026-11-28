@@ -48,7 +48,9 @@ public sealed class AntiforgeryDescriptorTests : TestBase
         User.LocationProviderSettings.VerifyMapboxPermanent User.LocationProviderSettings.VerifyGeoapify
         User.LocationProviderSettings.BackfillGeoapify User.LocationProviderSettings.Revoke User.LocationProviderSettings.SaveGuard
         User.Trip.Create User.Trip.Delete User.Trip.ToggleShareProgress User.Trip.Clone User.TripImport.Import User.TripImport.ReviewImport
-        User.TripTags.Attach User.TripTags.Remove User.Visit.Edit User.Visit.Delete
+        User.Trip.ExecuteViewerSharing User.Trip.IssueViewerSharing
+        User.TripTags.Attach User.TripTags.Remove User.TripTags.ExecuteAttachTags User.TripTags.IssueAttachTags
+        User.TripTags.ExecuteDetachTags User.TripTags.IssueDetachTags User.Visit.Edit User.Visit.Delete
         Api.Backfill.Apply Api.Backfill.Clear Api.ExternalRouteProposals.Generate Api.Groups.Create
         Api.Groups.ToggleOrgPeerVisibility Api.Groups.SetMemberOrgPeerVisibilityAccess Api.Groups.Leave Api.Groups.RemoveMember
         Api.Invitations.Create Api.Invitations.Accept Api.Invitations.Decline Api.Location.BulkDelete
@@ -56,7 +58,8 @@ public sealed class AntiforgeryDescriptorTests : TestBase
         Api.TripEditor.PrepareCompositionCoordinates
         Api.TripEditor.CreateArea Api.TripEditor.UpdateArea Api.TripEditor.UpdateAreaGeometry Api.TripEditor.DeleteArea
         Api.TripEditor.OrderAreas Api.TripEditor.PatchMetadata Api.TripEditor.CreateRegion Api.TripEditor.UpdateRegion
-        Api.TripEditor.IssueMetadataOperation
+        Api.TripEditor.IssueMetadataOperation Api.TripEditor.ExecuteReplaceTags Api.TripEditor.IssueReplaceTags
+        Api.TripEditor.ExecuteEditorSharing Api.TripEditor.IssueEditorSharing
         Api.TripEditor.PatchConditionalMetadata Api.TripEditor.PatchConditionalRegion Api.TripEditor.PatchConditionalArea
         Api.TripEditor.PatchConditionalSegmentNotes Api.TripEditor.PatchConditionalPlace Api.TripEditor.PatchPlanning
         Api.TripEditor.CheckPlanning Api.TripEditor.PreviewRegionDeletion Api.TripEditor.ConfirmRegionDeletion
@@ -88,7 +91,8 @@ public sealed class AntiforgeryDescriptorTests : TestBase
         Api.Trips.CreateVersion Api.Trips.StartComposition Api.Trips.FinishComposition Api.Trips.ApplyComposition Api.Trips.CopyToExisting Api.Trips.ImportNative Api.Trips.ReviewNative
         Api.Trips.PreviewRegionDeletion Api.Trips.ConfirmRegionDeletion
         Api.Trips.PreviewPlaceDeletion Api.Trips.ConfirmPlaceDeletion
-        Api.Trips.IssueMetadataOperation
+        Api.Trips.IssueMetadataOperation Api.Trips.ExecuteReplaceTags Api.Trips.IssueReplaceTags
+        Api.Trips.ExecuteSavedView Api.Trips.IssueSavedView
         Api.Trips.PatchConditionalMetadata Api.Trips.PatchConditionalRegion Api.Trips.PatchConditionalArea
         Api.Trips.PatchConditionalSegmentNotes Api.Trips.PatchConditionalPlace Api.Trips.PatchPlanning
         Api.Trips.PreparePlaceCoordinates Api.Trips.ApplyPlaceCoordinates Api.Trips.PreparePlaceMove Api.Trips.ApplyPlaceMove

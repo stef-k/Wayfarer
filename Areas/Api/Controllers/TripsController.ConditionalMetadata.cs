@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Wayfarer.Services;
+using Wayfarer.Services.TripMetadataReceipts;
 using Wayfarer.Util;
 
 namespace Wayfarer.Areas.Api.Controllers;
@@ -46,12 +47,13 @@ public partial class TripsController
         WithMetadataAuthorityAsync(routes => routes.LookupAsync(tripId, operationId, token), token);
 
     /// <summary>Uses the same incoming credential resolution and final revalidation as the bearer PATCH.</summary>
-    private async Task<IActionResult> WithMetadataAuthorityAsync(Func<TripMetadataReceiptRoutes, Task<IActionResult>> dispatch, CancellationToken token)
+    private async Task<IActionResult> WithMetadataAuthorityAsync(Func<TripMetadataReceiptRoutes, Task<IActionResult>> dispatch, CancellationToken token,
+        string kind = TripMetadataIdentity.OperationKind)
     {
         var authority = IncomingApiTokenResolver.ForRequest(HttpContext, _dbContext);
         var user = await authority.ResolveAsync(HttpContext, token);
         if (user == null) return Unauthorized();
         return await dispatch(new(Request, _dbContext, user.Id, false,
-            (_, cancellation) => authority.RevalidateMutationAsync(HttpContext, user.Id, cancellation)));
+            (_, cancellation) => authority.RevalidateMutationAsync(HttpContext, user.Id, cancellation), kind));
     }
 }

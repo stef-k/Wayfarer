@@ -24,9 +24,12 @@ public sealed class TripImportTagReconciler(ApplicationDbContext dbContext, ILog
             logger.LogWarning("KML import tag token cannot be represented safely.");
             throw;
         }
+        if (slugs.Count == 0) return [];
+        await TripTagMembership.LockCatalogueAsync(dbContext, cancellationToken);
         var tags = new List<Tag>(slugs.Count);
         foreach (var slug in slugs)
             tags.Add(await ResolveAsync(slug, cancellationToken));
+        await TripTagMembership.ProtectAsync(dbContext, tags.Select(tag => tag.Id), cancellationToken);
         return tags;
     }
 

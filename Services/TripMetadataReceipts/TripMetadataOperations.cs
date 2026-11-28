@@ -7,15 +7,16 @@ namespace Wayfarer.Services.TripMetadataReceipts;
 
 /// <summary>Issues and recovers permits under the current adapter and continuous database authority.</summary>
 internal sealed class TripMetadataOperations(ApplicationDbContext db, TripMetadataProofs proofs, string subject, bool web,
-    Func<ApplicationUser, CancellationToken, Task<bool>>? revalidateCredential)
+    Func<ApplicationUser, CancellationToken, Task<bool>>? revalidateCredential, string kind = TripMetadataIdentity.OperationKind)
 {
     private readonly TripMetadataReceiptStore _store = new(db);
     private string Adapter => web ? "web" : "bearer";
 
     /// <summary>Authenticates a new edit without creating a durable execution record or applying effects.</summary>
-    internal async Task<Dictionary<string, object?>> IssueAsync(Guid tripId, Stream body, CancellationToken token)
+    internal async Task<Dictionary<string, object?>> IssueAsync(Guid tripId, Stream body, CancellationToken token, Action<string>? validateTransport = null)
     {
-        var digest = await ReadIssuanceAsync(body, token);
+        var (contract, digest) = await ReadIssuanceAsync(body, token);
+        validateTransport?.Invoke(contract);
         await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, token);
         var owned = await db.Trips.FromSqlInterpolated($"""
             SELECT * FROM public."Trips" WHERE "Id" = {tripId} AND "UserId" = {subject} FOR SHARE
@@ -24,7 +25,7 @@ internal sealed class TripMetadataOperations(ApplicationDbContext db, TripMetada
         await RequireActiveAsync(db, subject, revalidateCredential, token);
         var sample = await _store.AdmissionAsync(token);
         if (sample.Now < sample.Cutoff) throw Unavailable();
-        var identity = new TripMetadataIdentity(TripMetadataIdentity.Version, subject, Adapter, TripMetadataIdentity.OperationKind,
+        var identity = new TripMetadataIdentity(contract, subject, Adapter, kind,
             tripId, digest, Guid.NewGuid(), sample.Now.AddMinutes(15));
         var envelope = identity.Envelope();
         envelope.Add("proof", proofs.Protect(identity, sample.Authority));
@@ -33,7 +34,7 @@ internal sealed class TripMetadataOperations(ApplicationDbContext db, TripMetada
     }
 
     /// <summary>Checks exact issuance member names, cardinality and digest spelling.</summary>
-    private static async Task<string> ReadIssuanceAsync(Stream body, CancellationToken token)
+    private async Task<(string Contract, string Digest)> ReadIssuanceAsync(Stream body, CancellationToken token)
     {
         try
         {
@@ -41,14 +42,18 @@ internal sealed class TripMetadataOperations(ApplicationDbContext db, TripMetada
             var root = document.RootElement;
             if (root.ValueKind == JsonValueKind.Object && root.EnumerateObject().Count() == 2
                 && root.TryGetProperty("contract", out var version) && version.ValueKind == JsonValueKind.String
-                && version.GetString() == TripMetadataIdentity.Version
+                && version.GetString() is { } contract && Supports(contract)
                 && root.TryGetProperty("requestDigest", out var digest) && digest.ValueKind == JsonValueKind.String
                 && digest.GetString() is { } value && TripMetadataIdentity.IsDigest(value))
-                return value;
+                return (contract, value);
         }
         catch (JsonException) { }
         throw new TripMetadataMutationRejected(400, "mutation-request-invalid", "A supported Trip save contract and request digest are required.");
     }
+
+    /// <summary>Only metadata has a version-one transport.</summary>
+    private bool Supports(string contract) => contract == TripMetadataIdentity.Version2
+        || kind == TripMetadataIdentity.OperationKind && contract == TripMetadataIdentity.Version;
 
     /// <summary>Reads the active authority before accepting any proof and binds it to this authenticated route.</summary>
     internal async Task<TripMetadataPermit> VerifyAsync(Guid tripId, string proof, Guid? operationId, CancellationToken token)
@@ -56,7 +61,7 @@ internal sealed class TripMetadataOperations(ApplicationDbContext db, TripMetada
         var sample = await _store.AdmissionAsync(token);
         var identity = proofs.Verify(proof, sample.Authority);
         if (identity.SubjectId != subject || identity.Adapter != Adapter || identity.TripId != tripId
-            || identity.Kind != TripMetadataIdentity.OperationKind || operationId.HasValue && identity.OperationId != operationId)
+            || identity.Kind != kind || !Supports(identity.Contract) || operationId.HasValue && identity.OperationId != operationId)
             throw new TripMetadataMutationRejected(409, "trip-attempt-mismatch", "The Trip save proof does not match this request.");
         return new(identity, sample.Authority);
     }

@@ -208,6 +208,22 @@ before starting the application. Database-only recovery can leave stored provide
 credentials permanently unreadable.
 
 
+### Activate Trip receipt v2 with all writers stopped
+
+Before updating to the first v2-capable release, quiesce incoming writes and
+stop every Wayfarer application process and catalogue cleanup scheduler sharing
+the database. For the supplied native service, use `sudo systemctl stop wayfarer`
+on each host and verify that the old processes have exited and their database
+transactions have drained. Keep ingress closed until every writable instance
+runs the v2-capable build. A rolling activation across old and new writers would
+allow an old cleanup or cookie write to bypass the new locking and write fence.
+
+Keep the active key ring, database proof authority, retirement cutoff and
+receipts through this ordinary update. Already-open tabs may receive a write
+upgrade refusal and should reload. Retained v1 operation proofs still recover
+through their original routes. A fresh owner read gives the current state of an
+earlier unprotected write.
+
 ### Prepare legacy protected credentials before stable-identity activation
 
 Older native installations can contain provider credentials protected under the

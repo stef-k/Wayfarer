@@ -30,10 +30,14 @@ public sealed partial class TripMetadataConditionalPostgresTests
         await using var db = fixture.CreateContext();
         await using var app = await StartAsync(db, [probe]);
         using var client = webRoute ? await WebAsync(app, trip.UserId) : Bearer(app, trip.UserId);
+        var webWrite = TripControlWrite.Create(trip.Id, "editor/metadata/conditional", HttpMethod.Patch, "metadata", true,
+            new { expected = new { name = trip.Name }, changes = new { name = "Must not commit" } });
+        var permit = webRoute ? await webWrite.PermitAsync(client, trip) : default;
         await using var blocker = fixture.CreateContext();
         await using var transaction = await blocker.Database.BeginTransactionAsync();
         await blocker.Database.ExecuteSqlInterpolatedAsync($"SELECT 1 FROM public.\"Trips\" WHERE \"Id\" = {trip.Id} FOR UPDATE");
-        var pending = PatchAsync(client, trip.Id, webRoute, new { name = trip.Name }, new { name = "Must not commit" });
+        var pending = webRoute ? webWrite.DispatchAsync(client, permit)
+            : PatchAsync(client, trip.Id, false, new { name = trip.Name }, new { name = "Must not commit" });
         try
         {
             await probe.LockStarted.Task.WaitAsync(TimeSpan.FromSeconds(10));
@@ -93,7 +97,7 @@ public sealed partial class TripMetadataConditionalPostgresTests
         Assert.Empty(_thumbnails.Invocations);
     }
 
-    /// <summary>Existing share-progress routes refuse enabling sharing when the privacy commit wins the row lock.</summary>
+    /// <summary>Protected share-progress routes refuse enabling sharing when the privacy commit wins the row lock.</summary>
     [PostgresTheory]
     [InlineData(true, true)]
     [InlineData(true, false)]
@@ -107,33 +111,39 @@ public sealed partial class TripMetadataConditionalPostgresTests
         await using var app = await StartAsync(db, [probe]);
         using var web = await WebAsync(app, trip.UserId);
         using var privacyWeb = await WebAsync(app, trip.UserId);
+        var share = TripControlWrite.Create(trip.Id, editorRoute ? "editor/share-progress/conditional" : $"/User/Trip/{trip.Id}/share-progress/conditional",
+            editorRoute ? HttpMethod.Patch : HttpMethod.Post, editorRoute ? "editor-sharing" : "viewer-sharing", true, new { enabled = true });
+        var privacyWrite = TripControlWrite.Create(trip.Id, "editor/metadata/conditional", HttpMethod.Patch, "metadata", true,
+            new { expected = new { isPublic = true }, changes = new { isPublic = false } });
+        var sharePermit = await share.PermitAsync(web, trip);
+        var privacyPermit = await privacyWrite.PermitAsync(privacyWeb, trip);
         await using var blocker = fixture.CreateContext();
         await using var transaction = await blocker.Database.BeginTransactionAsync();
         await blocker.Database.ExecuteSqlInterpolatedAsync($"SELECT 1 FROM public.\"Trips\" WHERE \"Id\" = {trip.Id} FOR UPDATE");
-        Task<HttpResponseMessage> Share() => editorRoute
-            ? web.PatchAsJsonAsync($"/api/trips/{trip.Id}/editor/share-progress", new { enabled = true })
-            : web.PostAsync($"/User/Trip/ToggleShareProgress/{trip.Id}?enabled=true", null);
-        Task<HttpResponseMessage> Privatize() => PatchAsync(privacyWeb, trip.Id, true, new { isPublic = true }, new { isPublic = false });
+        Task<HttpResponseMessage> Share() => share.DispatchAsync(web, sharePermit);
+        Task<HttpResponseMessage> Privatize() => privacyWrite.DispatchAsync(privacyWeb, privacyPermit);
         var first = privacyFirst ? Privatize() : Share();
         Task<HttpResponseMessage>? second = null;
         try
         {
-            await (privacyFirst ? probe.LockStarted.Task : probe.UpdateStarted.Task).WaitAsync(TimeSpan.FromSeconds(10));
-            await WaitForBlockAsync(probe.ProcessId);
+            await probe.LockStarted.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            var firstProcess = probe.ProcessId;
+            await WaitForBlockAsync(firstProcess);
             second = privacyFirst ? Share() : Privatize();
-            await (privacyFirst ? probe.UpdateStarted.Task : probe.LockStarted.Task).WaitAsync(TimeSpan.FromSeconds(10));
-            await WaitForBlockAsync(probe.ProcessId);
+            var secondProcess = await probe.SecondLock.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            Assert.NotEqual(firstProcess, secondProcess);
+            await WaitForBlockAsync(secondProcess);
             await transaction.CommitAsync();
             using var privacy = await (privacyFirst ? first : second).WaitAsync(TimeSpan.FromSeconds(10));
             using var sharing = await (privacyFirst ? second : first).WaitAsync(TimeSpan.FromSeconds(10));
-            Assert.Equal(HttpStatusCode.OK, privacy.StatusCode);
-            Assert.Equal(editorRoute && privacyFirst ? HttpStatusCode.BadRequest : HttpStatusCode.OK, sharing.StatusCode);
-            if (!editorRoute && privacyFirst)
-            {
-                var reply = await sharing.Content.ReadFromJsonAsync<JsonElement>();
-                Assert.False(reply.GetProperty("success").GetBoolean());
-                Assert.Equal("Trip must be public to share progress", reply.GetProperty("error").GetString());
-            }
+            await TripMetadataReceiptHttp.EvidenceAsync(privacy, privacyPermit, "applied");
+            var result = await TripMetadataReceiptHttp.EvidenceAsync(sharing, sharePermit, privacyFirst ? "terminalUnapplied" : "applied",
+                privacyFirst ? 400 : 200);
+            if (privacyFirst) Assert.Equal("share-progress-requires-public", result.GetProperty("code").GetString());
+            else Assert.True(result.GetProperty("sharingResult").GetProperty("shareProgressEnabled").GetBoolean());
+            using var lookup = await share.LookupAsync(web, sharePermit);
+            Assert.Equal(result.ToString(), (await TripMetadataReceiptHttp.EvidenceAsync(lookup, sharePermit,
+                privacyFirst ? "terminalUnapplied" : "applied")).ToString());
             await using var verification = fixture.CreateContext();
             var stored = await verification.Trips.SingleAsync(t => t.Id == trip.Id);
             Assert.False(stored.IsPublic || stored.ShareProgressEnabled);
@@ -153,10 +163,17 @@ public sealed partial class TripMetadataConditionalPostgresTests
         var trip = await SeedAsync();
         var probe = new MutationProbe();
         await using var db = fixture.CreateContext();
-        await using var app = await StartAsync(db, [probe, new FailMetadataCommit()]);
+        var failCommit = new FailSelectedCommit();
+        await using var app = await StartAsync(db, [probe, failCommit]);
         using var web = await WebAsync(app, trip.UserId);
-        using var response = await PatchAsync(web, trip.Id, true, new { name = trip.Name, isPublic = true, notesHtml = trip.Notes },
-            new { name = "Uncommitted", isPublic = false, notesHtml = "<p>Uncommitted</p>" });
+        var write = TripControlWrite.Create(trip.Id, "editor/metadata/conditional", HttpMethod.Patch, "metadata", true,
+            new { expected = new { name = trip.Name, isPublic = true, notesHtml = trip.Notes },
+                changes = new { name = "Uncommitted", isPublic = false, notesHtml = "<p>Uncommitted</p>" } });
+        var permit = await write.PermitAsync(web, trip);
+        failCommit.FailNext = true;
+        using var response = await write.DispatchAsync(web, permit);
+        using var lookup = await write.LookupAsync(web, permit);
+        await TripMetadataReceiptHttp.EvidenceAsync(lookup, permit, "unobserved");
         Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
         await using var verification = fixture.CreateContext();
         var stored = await verification.Trips.SingleAsync(t => t.Id == trip.Id);
@@ -284,6 +301,7 @@ public sealed partial class TripMetadataConditionalPostgresTests
     private sealed class MutationProbe : DbCommandInterceptor
     {
         internal TaskCompletionSource LockStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        internal TaskCompletionSource<int> SecondLock { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         internal TaskCompletionSource UpdateStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         internal int ProcessId { get; private set; }
         internal List<string> Updates { get; } = [];
@@ -295,7 +313,7 @@ public sealed partial class TripMetadataConditionalPostgresTests
             if (command.CommandText.Contains("FOR UPDATE"))
             {
                 ProcessId = ((NpgsqlConnection)command.Connection!).ProcessID;
-                LockStarted.TrySetResult();
+                if (!LockStarted.TrySetResult()) SecondLock.TrySetResult(ProcessId);
             }
             return ValueTask.FromResult(result);
         }
@@ -313,11 +331,4 @@ public sealed partial class TripMetadataConditionalPostgresTests
         }
     }
 
-    /// <summary>Injects one failure after domain SQL but before commit, at EF's existing transaction seam.</summary>
-    private sealed class FailMetadataCommit : DbTransactionInterceptor
-    {
-        public override ValueTask<InterceptionResult> TransactionCommittingAsync(DbTransaction transaction, TransactionEventData data,
-            InterceptionResult result, CancellationToken cancellationToken = default) =>
-            throw new InvalidOperationException("Controlled metadata commit failure");
-    }
 }

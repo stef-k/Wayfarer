@@ -68,6 +68,8 @@ public sealed class PostgresImportTestFixture : IAsyncLifetime
         {
             if (_userIds.Count == 0) return;
             await using var context = CreateContext();
+            var subjects = _userIds.ToArray();
+            await context.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM public.trip_metadata_receipts WHERE subject_id = ANY({subjects})");
             await context.Users.Where(user => _userIds.Contains(user.Id)).ExecuteDeleteAsync();
         }, failures);
         if (failures.Count > 0) throw new AggregateException("PostgreSQL fixture cleanup failed.", failures);

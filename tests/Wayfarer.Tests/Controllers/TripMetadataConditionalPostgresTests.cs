@@ -37,6 +37,7 @@ public sealed partial class TripMetadataConditionalPostgresTests(PostgresImportT
         await using var app = await StartAsync(db);
         using var web = app.GetTestClient();
         UserConnectionTokenHttpTests.Cookie(web, app.Services, trip.UserId);
+        WebSubjects.Add(web, trip.UserId);
         await UserConnectionTokenHttpTests.AddAntiforgeryAsync(web);
         using var bearer = app.GetTestClient();
         bearer.DefaultRequestHeaders.Authorization = new("Bearer", trip.UserId);
@@ -49,7 +50,7 @@ public sealed partial class TripMetadataConditionalPostgresTests(PostgresImportT
 
         async Task SaveWeb()
         {
-            using var response = await web.PatchAsJsonAsync($"/api/trips/{trip.Id}/editor/metadata/conditional", webDraft);
+            using var response = await PatchAsync(web, trip.Id, true, webDraft.expected, webDraft.changes);
             Assert.True(response.StatusCode == HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
         }
         async Task SaveBearer()
@@ -89,7 +90,7 @@ public sealed partial class TripMetadataConditionalPostgresTests(PostgresImportT
             using var response = await PatchAsync(web, trip.Id, true, expected, changes);
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             var result = await response.Content.ReadFromJsonAsync<JsonElement>();
-            Assert.Equal("share-progress-disabled", result.GetProperty("warnings")[0].GetProperty("code").GetString());
+            Assert.True(result.GetProperty("privacyEffect").GetProperty("disabledShareProgress").GetBoolean());
         }
         async Task SaveBearer()
         {
@@ -254,8 +255,10 @@ public sealed partial class TripMetadataConditionalPostgresTests(PostgresImportT
         using var view = await PatchAsync(web, trip.Id, true, new { center = new { latitude = 1, longitude = (double?)null } },
             new { center = (object?)null });
         Assert.Equal(HttpStatusCode.OK, view.StatusCode);
-        var result = await view.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.Equal("New Notes", result.GetProperty("data").GetProperty("originalValues").GetProperty("notesHtml").GetString());
+        using var ownerRead = await web.GetAsync($"/api/trips/{trip.Id}/editor/metadata/conditional?contract={TripControlWrite.Contract}");
+        ownerRead.EnsureSuccessStatusCode();
+        var result = await ownerRead.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("New Notes", result.GetProperty("metadata").GetProperty("originalValues").GetProperty("notesHtml").GetString());
         await using var verification = fixture.CreateContext();
         var stored = await verification.Trips.SingleAsync(t => t.Id == trip.Id);
         Assert.Equal("New name", stored.Name);
@@ -275,10 +278,13 @@ public sealed partial class TripMetadataConditionalPostgresTests(PostgresImportT
         }, middleware);
 
     /// <summary>Uses a genuine User cookie and its matching antiforgery token.</summary>
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<HttpClient, string> WebSubjects = new();
+
     private static async Task<HttpClient> WebAsync(WebApplication app, string userId)
     {
         var client = app.GetTestClient();
         UserConnectionTokenHttpTests.Cookie(client, app.Services, userId);
+        WebSubjects.Add(client, userId);
         await UserConnectionTokenHttpTests.AddAntiforgeryAsync(client);
         return client;
     }
@@ -292,8 +298,15 @@ public sealed partial class TripMetadataConditionalPostgresTests(PostgresImportT
     }
 
     /// <summary>Sends only the selected original/dirty-field contract through its actual route.</summary>
-    private static Task<HttpResponseMessage> PatchAsync(HttpClient client, Guid tripId, bool web, object expected, object changes) =>
-        client.PatchAsJsonAsync($"/api/trips/{tripId}" + (web ? "/editor/metadata/conditional" : "/conditional"), new { expected, changes });
+    private static async Task<HttpResponseMessage> PatchAsync(HttpClient client, Guid tripId, bool web, object expected, object changes)
+    {
+        if (!web) return await client.PatchAsJsonAsync($"/api/trips/{tripId}/conditional", new { expected, changes });
+        var write = TripControlWrite.Create(tripId, "editor/metadata/conditional", HttpMethod.Patch, "metadata", true, new { expected, changes });
+        var issuance = await write.IssueAsync(client, WebSubjects.TryGetValue(client, out var subject) ? subject : "unavailable", tripId);
+        if (!issuance.IsSuccessStatusCode) return issuance;
+        using (issuance)
+            return await write.DispatchAsync(client, await issuance.Content.ReadFromJsonAsync<JsonElement>());
+    }
 
     /// <summary>Seeds a separately owned Trip and an actual accepted incoming bearer, with scoped cleanup.</summary>
     private async Task<Trip> SeedAsync(string? notes = "Original notes")

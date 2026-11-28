@@ -16,7 +16,7 @@ export default defineConfig({
     manifest: 'manifest.json',
     rollupOptions: {
       // Each page loads one entry; shared editor/style imports are emitted as Vite chunks.
-      input: ['ClientApps/trip-editor/src/main.ts', 'ClientApps/trip-editor/src/recovery/myTrips.ts', 'ClientApps/rich-notes/location-edit.js',
+      input: ['ClientApps/trip-editor/src/main.ts', 'ClientApps/trip-editor/src/recovery/myTrips.ts', 'ClientApps/trip-editor/src/recovery/viewerSharing.ts', 'ClientApps/rich-notes/location-edit.js',
         'ClientApps/rich-notes/location-create.js', 'ClientApps/rich-notes/location-bulk.js',
         'ClientApps/rich-notes/visit-edit.js']
     }

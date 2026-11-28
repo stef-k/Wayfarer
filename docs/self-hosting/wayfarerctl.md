@@ -506,6 +506,14 @@ complete the upgrade. Progress and prerequisite failures are shown during the lo
 offline window. Existing backups, capacity checks and writer exclusion remain
 required. No extra history command is needed for a normal supported update.
 
+The Trip receipt v2 transition uses this existing offline activation boundary.
+Every old application writer and catalogue cleanup scheduler must be stopped and
+drained before any target process serves permits or writes. The managed update
+stops and verifies its owned resources. Stop any separately managed replica or
+worker sharing this database before executing the plan, and return it to service
+only on the same v2-capable release. Preserve the active key ring, database proof
+authority, retirement cutoff and stored receipts during an ordinary update.
+
 Recovery:
 
 ```sh

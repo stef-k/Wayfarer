@@ -483,6 +483,9 @@
   <data name="Viewer.CloneSignIn" xml:space="preserve">
     <value>User not authenticated.</value>
   </data>
+  <data name="Viewer.CloneContention" xml:space="preserve">
+    <value>Concurrent Trip changes prevented the copy. Try again.</value>
+  </data>
   <data name="Viewer.CloneFailed" xml:space="preserve">
     <value>Failed to clone trip. Please try again.</value>
   </data>
@@ -501,4 +504,8 @@
   <data name="Viewer.ClonePartial" xml:space="preserve">
     <value>Trip '{0}' has been cloned to your account! Covers and embedded images were omitted because transferable permission is unavailable. Select permitted images in your copy.</value>
   </data>
+  <data name="Viewer.ShareRetainedChoice" xml:space="preserve"><value>Retained sharing choice ({0}).</value></data>
+  <data name="Viewer.ShareCurrentState" xml:space="preserve"><value>Current Trip is {0}, with sharing {1}.</value></data>
+  <data name="Viewer.ShareAdoptCurrent" xml:space="preserve"><value>Use current sharing settings as comparison base</value></data>
+  <data name="Viewer.ShareSaveChoice" xml:space="preserve"><value>Save sharing choice</value></data>
 </root>

@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Data;
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
@@ -8,6 +9,7 @@ using Microsoft.Extensions.Logging;
 using Unidecode.NET;
 using Wayfarer.Models;
 using Wayfarer.Models.Dtos;
+using Wayfarer.Services.TripMetadataReceipts;
 
 namespace Wayfarer.Services;
 
@@ -38,148 +40,134 @@ public sealed class TripTagService(ApplicationDbContext dbContext, ILogger<TripT
             .ToList();
     }
 
-    public async Task<IReadOnlyList<TripTagDto>> AttachTagsAsync(Guid tripId, IEnumerable<string> names, string userId, CancellationToken cancellationToken = default)
-    {
-        var normalizedNames = names
-            .Where(n => !string.IsNullOrWhiteSpace(n))
-            .Select(n => n.Trim())
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToArray();
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<TripTagDto>> AttachTagsAsync(Guid tripId, IEnumerable<string> names, string userId, CancellationToken cancellationToken = default) =>
+        (await ChangeAsync(tripId, userId, "tags-attach", new(names.ToArray(), null, null), cancellationToken))
+            .ResultingTags.OrderBy(tag => tag.Name).ToArray();
 
-        if (normalizedNames.Length == 0)
-        {
-            throw new ValidationException("Please provide at least one tag.");
-        }
-
-        await using var tx = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
-
-        var trip = await _dbContext.Trips
-            .Include(t => t.Tags)
-            .FirstOrDefaultAsync(t => t.Id == tripId && t.UserId == userId, cancellationToken);
-
-        if (trip == null)
-        {
-            throw new KeyNotFoundException("Trip not found or access denied.");
-        }
-
-        var pending = new List<Tag>();
-
-        foreach (var rawName in normalizedNames)
-        {
-            ValidateTagName(rawName);
-
-            var tag = await GetOrCreateTagAsync(rawName, cancellationToken);
-            if (!trip.Tags.Any(t => t.Id == tag.Id))
-            {
-                pending.Add(tag);
-            }
-        }
-
-        if (trip.Tags.Count + pending.Count > MaxTagsPerTrip)
-        {
-            throw new ValidationException("You can add up to 25 tags per trip.");
-        }
-
-        foreach (var tag in pending)
-        {
-            trip.Tags.Add(tag);
-        }
-
-        await _dbContext.SaveChangesAsync(cancellationToken);
-        await tx.CommitAsync(cancellationToken);
-
-        return trip.Tags
-            .OrderBy(t => t.Name)
-            .Select(MapToDto)
-            .ToList();
-    }
-
+    /// <inheritdoc />
     public async Task<TripTagReplacementResult> ReplaceTagsAsync(Guid tripId, IReadOnlyList<string> names, string userId, CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(names);
-
-        var desired = names
-            .Select(name => new { Name = name.Trim().Normalize(NormalizationForm.FormC), Slug = ToSlug(name) })
-            .DistinctBy(tag => tag.Slug)
-            .ToList();
-
-        await using var tx = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
-
-        var trip = await _dbContext.Trips
-            .Include(t => t.Tags)
-            .FirstOrDefaultAsync(t => t.Id == tripId && t.UserId == userId, cancellationToken);
-
-        if (trip == null)
-        {
-            throw new KeyNotFoundException("Trip not found or access denied.");
-        }
-
-        var previousSlugs = trip.Tags.Select(t => t.Slug).ToHashSet(StringComparer.Ordinal);
-        var desiredSlugs = desired.Select(t => t.Slug).ToHashSet(StringComparer.Ordinal);
-        var deletedSlugs = previousSlugs.Except(desiredSlugs, StringComparer.Ordinal).OrderBy(slug => slug).ToList();
-        var nextTags = new List<Tag>();
-
-        foreach (var desiredTag in desired)
-        {
-            ValidateTagName(desiredTag.Name);
-            nextTags.Add(await GetOrCreateTagBySlugAsync(desiredTag.Name, desiredTag.Slug, cancellationToken));
-        }
-
-        trip.Tags.Clear();
-        foreach (var tag in nextTags)
-        {
-            trip.Tags.Add(tag);
-        }
-
-        await _dbContext.SaveChangesAsync(cancellationToken);
-        await RemoveUnusedTagsAsync(deletedSlugs, cancellationToken);
-        await tx.CommitAsync(cancellationToken);
-
-        var tags = await GetTagsForTripAsync(tripId, userId, cancellationToken);
-        return new TripTagReplacementResult(tags, deletedSlugs);
+        var effect = await ChangeAsync(tripId, userId, "tags-replace", new(names.ToArray(), null, null), cancellationToken);
+        return new(effect.ResultingTags.OrderBy(tag => tag.Name).ToArray(), effect.RemovedJoins.Select(tag => tag.Slug).ToArray());
     }
 
+    /// <inheritdoc />
     public async Task<bool> DetachTagAsync(Guid tripId, string slug, string userId, CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(slug))
+        if (string.IsNullOrWhiteSpace(slug)) return false;
+        try
         {
-            return false;
+            await ChangeAsync(tripId, userId, "tags-detach", new([], null, slug), cancellationToken);
+            return true;
         }
-
-        await using var tx = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
-
-        var trip = await _dbContext.Trips
-            .Include(t => t.Tags)
-            .FirstOrDefaultAsync(t => t.Id == tripId && t.UserId == userId, cancellationToken);
-
-        if (trip == null)
-        {
-            throw new KeyNotFoundException("Trip not found or access denied.");
-        }
-
-        var tag = trip.Tags.FirstOrDefault(t => t.Slug == slug);
-        if (tag == null)
-        {
-            return false;
-        }
-
-        trip.Tags.Remove(tag);
-        await _dbContext.SaveChangesAsync(cancellationToken);
-
-        var stillUsed = await _dbContext.Entry(tag)
-            .Collection(t => t.Trips)
-            .Query()
-            .AnyAsync(cancellationToken);
-
-        if (!stillUsed)
-        {
-            _dbContext.Tags.Remove(tag);
-            await _dbContext.SaveChangesAsync(cancellationToken);
-        }
-
-        await tx.CommitAsync(cancellationToken);
-        return true;
+        catch (TripMetadataMutationRejected error) when (error.Code == "tag-not-on-trip") { return false; }
     }
+
+    /// <summary>Retains the service entry points under the same membership locking rules.</summary>
+    private async Task<TripTagEffect> ChangeAsync(Guid id, string owner, string kind, TripTagChange change, CancellationToken token)
+    {
+        await using var transaction = await _dbContext.Database.BeginTransactionAsync(token);
+        if (_dbContext.Database.IsRelational() && await TripTagMembership.LockTripAsync(_dbContext, id, owner, token) == null)
+            throw new KeyNotFoundException("Trip not found or access denied.");
+        var effect = await ApplyLockedAsync(id, owner, kind, change, () => Task.CompletedTask, token);
+        await transaction.CommitAsync(token);
+        return effect;
+    }
+
+    /// <summary>Compares, resolves and captures membership effects inside the caller's locked transaction.</summary>
+    internal async Task<TripTagEffect> ApplyLockedAsync(Guid id, string owner, string kind, TripTagChange change,
+        Func<Task> readmission, CancellationToken token)
+    {
+        var trip = await _dbContext.Trips.Include(t => t.Tags).SingleOrDefaultAsync(t => t.Id == id && t.UserId == owner, token)
+            ?? throw new KeyNotFoundException("Trip not found or access denied.");
+        var previous = trip.Tags.ToArray();
+        if (change.Expected != null && !change.Expected.SetEquals(previous.Select(Identity)))
+            throw new TripMetadataMutationRejected(409, "mutation-base-stale", "The Trip tag identities changed.");
+        await TripTagMembership.LockCatalogueAsync(_dbContext, token);
+        await readmission();
+        var created = new List<Tag>();
+        var next = await ResolveMembershipAsync(previous, kind, change, created, token);
+        var added = next.ExceptBy(previous.Select(tag => tag.Id), tag => tag.Id).ToArray();
+        var removed = previous.ExceptBy(next.Select(tag => tag.Id), tag => tag.Id).ToArray();
+        await TripTagMembership.ProtectAsync(_dbContext, next.Except(created).Select(tag => tag.Id), token);
+        await readmission();
+
+        foreach (var tag in removed) trip.Tags.Remove(tag);
+        foreach (var tag in added) trip.Tags.Add(tag);
+        if (added.Length != 0 || removed.Length != 0)
+        {
+            await _dbContext.SaveChangesAsync(token);
+            await TripTagMembership.TouchTripAsync(_dbContext, id, token);
+        }
+        var deleted = await TripTagMembership.DeleteUnusedAsync(_dbContext, removed.Select(tag => tag.Id).ToArray(), token);
+        await readmission();
+        return new(Ordered(added).Select(Identity).ToArray(), Ordered(removed).Select(Identity).ToArray(),
+            Ordered(created).Select(Identity).ToArray(), Ordered(deleted).Select(Identity).ToArray(), Ordered(next).Select(MapToDto).ToArray());
+    }
+
+    /// <summary>Implements the distinct adapter normalization rules without changing attached identities silently.</summary>
+    private async Task<Tag[]> ResolveMembershipAsync(Tag[] previous, string kind, TripTagChange change, List<Tag> created, CancellationToken token)
+    {
+        if (kind == "tags-detach")
+        {
+            if (!previous.Any(tag => tag.Slug == change.Slug))
+                throw new TripMetadataMutationRejected(404, "tag-not-on-trip", "Tag not found on this Trip.");
+            return previous.Where(tag => tag.Slug != change.Slug).ToArray();
+        }
+        var attach = kind == "tags-attach";
+        var names = attach ? change.Names.Where(name => !string.IsNullOrWhiteSpace(name)).Select(name => name.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase).ToArray() : change.Names.Select(name => name.Trim()).ToArray();
+        if (attach && names.Length == 0) throw new ValidationException("Please provide at least one tag.");
+        foreach (var name in names) ValidateTagName(name);
+        var desired = names.Select(name => (Name: name.Normalize(NormalizationForm.FormC), Slug: ToSlug(name)))
+            .DistinctBy(name => attach ? name.Name : name.Slug).OrderBy(name => name.Slug, StringComparer.Ordinal);
+        var next = attach ? previous.ToList() : new List<Tag>();
+        foreach (var (name, slug) in desired)
+        {
+            var tag = await ResolveAsync(name, slug, attach, created, token);
+            if (!next.Any(current => current.Id == tag.Id)) next.Add(tag);
+        }
+        if (next.Count > MaxTagsPerTrip) throw new ValidationException("You can add up to 25 tags per trip.");
+        return next.ToArray();
+    }
+
+    /// <summary>Resolves name first on attach and slug first on replacement, including a unique-key winner.</summary>
+    private async Task<Tag> ResolveAsync(string name, string slug, bool byName, List<Tag> created, CancellationToken token)
+    {
+        var matches = await _dbContext.Tags.Where(tag => tag.Name == name || tag.Slug == slug).ToListAsync(token);
+        var existing = byName ? matches.FirstOrDefault(tag => tag.Name == name) : matches.FirstOrDefault(tag => tag.Slug == slug);
+        if (_dbContext.Database.IsRelational()) existing ??= matches.FirstOrDefault();
+        if (existing != null) return existing;
+        if (_dbContext.Database.IsRelational())
+        {
+            var id = Guid.NewGuid();
+            var count = await _dbContext.Database.ExecuteSqlInterpolatedAsync($"""
+                INSERT INTO public."Tags" ("Id", "Name", "Slug") VALUES ({id}, {name}, {slug}) ON CONFLICT DO NOTHING
+                """, token);
+            if (count == 0)
+            {
+                logger.LogDebug("Resolving the committed tag catalogue winner.");
+                var winners = await _dbContext.Tags.Where(tag => tag.Name == name || tag.Slug == slug).ToListAsync(token);
+                var winner = byName ? winners.FirstOrDefault(tag => tag.Name == name) : winners.FirstOrDefault(tag => tag.Slug == slug);
+                return winner ?? winners.SingleOrDefault() ?? throw TripMetadataMutationService.Contention();
+            }
+            var inserted = await _dbContext.Tags.SingleAsync(tag => tag.Id == id, token);
+            created.Add(inserted);
+            return inserted;
+        }
+        var candidate = new Tag { Id = Guid.NewGuid(), Name = name, Slug = slug };
+        _dbContext.Tags.Add(candidate);
+        created.Add(candidate);
+        return candidate;
+    }
+
+    /// <summary>Sorts every evidence array by ordinal slug, then canonical UUID.</summary>
+    private static IEnumerable<Tag> Ordered(IEnumerable<Tag> tags) =>
+        tags.OrderBy(tag => tag.Slug, StringComparer.Ordinal).ThenBy(tag => tag.Id.ToString("D"), StringComparer.Ordinal);
+
+    /// <summary>Projects the stored identity without re-normalizing it.</summary>
+    private static TripTagIdentity Identity(Tag tag) => new(tag.Id, tag.Slug);
 
     public async Task<IReadOnlyList<TagSuggestionDto>> GetSuggestionsAsync(string? query, int limit = 10, CancellationToken cancellationToken = default)
     {
@@ -280,13 +268,14 @@ public sealed class TripTagService(ApplicationDbContext dbContext, ILogger<TripT
                   .Count() == slugCount);
     }
 
+    /// <inheritdoc />
     public async Task RemoveOrphanTagsAsync(CancellationToken cancellationToken = default)
     {
-        await _dbContext.Database.ExecuteSqlRawAsync(@"
-DELETE FROM ""Tags"" t
-WHERE NOT EXISTS (
-    SELECT 1 FROM ""TripTags"" tt WHERE tt.""TagId"" = t.""Id""
-);", cancellationToken);
+        await using var transaction = await _dbContext.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
+        await TripTagMembership.LockCatalogueAsync(_dbContext, cancellationToken);
+        var candidates = await _dbContext.Tags.Where(tag => !tag.Trips.Any()).Select(tag => tag.Id).ToArrayAsync(cancellationToken);
+        await TripTagMembership.DeleteUnusedAsync(_dbContext, candidates, cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
     }
 
     public static string NormalizeSlug(string name) => ToSlug(name);
@@ -312,83 +301,6 @@ WHERE NOT EXISTS (
         {
             throw new ValidationException("Tags may include letters, numbers, spaces, hyphen, apostrophe.");
         }
-    }
-
-    private async Task<Tag> GetOrCreateTagAsync(string name, CancellationToken cancellationToken)
-    {
-        var normalized = name.Trim();
-        var existing = await _dbContext.Tags.FirstOrDefaultAsync(t => t.Name == normalized, cancellationToken);
-        if (existing != null)
-        {
-            return existing;
-        }
-
-        var tag = new Tag
-        {
-            Name = normalized.Normalize(NormalizationForm.FormC),
-            Slug = ToSlug(normalized)
-        };
-
-        _dbContext.Tags.Add(tag);
-
-        try
-        {
-            await _dbContext.SaveChangesAsync(cancellationToken);
-            return tag;
-        }
-        catch (DbUpdateException ex)
-        {
-            _logger.LogWarning("Race while creating tag by name. Failure type: {ExceptionType}", ex.GetType().Name);
-            return await _dbContext.Tags.FirstAsync(t => t.Name == normalized, cancellationToken);
-        }
-    }
-
-    private async Task<Tag> GetOrCreateTagBySlugAsync(string name, string slug, CancellationToken cancellationToken)
-    {
-        var existing = await _dbContext.Tags.FirstOrDefaultAsync(t => t.Slug == slug, cancellationToken);
-        if (existing != null)
-        {
-            return existing;
-        }
-
-        var tag = new Tag
-        {
-            Name = name,
-            Slug = slug
-        };
-
-        _dbContext.Tags.Add(tag);
-
-        try
-        {
-            await _dbContext.SaveChangesAsync(cancellationToken);
-            return tag;
-        }
-        catch (DbUpdateException ex)
-        {
-            _logger.LogWarning("Race while creating tag by slug. Failure type: {ExceptionType}", ex.GetType().Name);
-            return await _dbContext.Tags.FirstAsync(t => t.Slug == slug, cancellationToken);
-        }
-    }
-
-    private async Task RemoveUnusedTagsAsync(IReadOnlyList<string> slugs, CancellationToken cancellationToken)
-    {
-        if (slugs.Count == 0)
-        {
-            return;
-        }
-
-        var candidates = await _dbContext.Tags
-            .Include(t => t.Trips)
-            .Where(t => slugs.Contains(t.Slug))
-            .ToListAsync(cancellationToken);
-
-        foreach (var tag in candidates.Where(t => t.Trips.Count == 0))
-        {
-            _dbContext.Tags.Remove(tag);
-        }
-
-        await _dbContext.SaveChangesAsync(cancellationToken);
     }
 
     private static TripTagDto MapToDto(Tag tag) => new(tag.Id, tag.Name, tag.Slug);
@@ -436,5 +348,5 @@ WHERE NOT EXISTS (
     }
 
     private readonly ApplicationDbContext _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
-    private readonly ILogger<TripTagService> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+
 }

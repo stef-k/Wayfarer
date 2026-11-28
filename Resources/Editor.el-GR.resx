@@ -4821,7 +4821,7 @@
   <data name="Editor.ReceiptDraftChanged" xml:space="preserve"><value>Το πρόχειρο άλλαξε σε άλλη καρτέλα. Ανοίξτε ξανά το πιο πρόσφατο πρόχειρο.</value></data>
   <data name="Editor.ReceiptHeld" xml:space="preserve"><value>Μια προηγούμενη αποθήκευση ταξιδιού δεν έχει επιβεβαιωθεί. Ανακτήστε την πριν στείλετε αλλαγές στα ίδια πεδία.</value></data>
   <data name="Editor.ReceiptReview" xml:space="preserve"><value>Ελέγξτε την τρέχουσα τιμή του ταξιδιού και επιλέξτε τη ως βάση σύγκρισης.</value></data>
-  <data name="Editor.ReceiptStorage" xml:space="preserve"><value>Το πρόγραμμα περιήγησης δεν μπόρεσε να αποθηκεύσει την αλλαγή. Κρατήστε τη σελίδα ανοιχτή και δοκιμάστε ξανά.</value></data>
+  <data name="Editor.ReceiptStorage" xml:space="preserve"><value>Ο χώρος αποθήκευσης προσχεδίων δεν είναι διαθέσιμος. Κλείστε τις παλιότερες καρτέλες ταξιδιών και έπειτα ανανεώστε τη σελίδα ή ανακτήστε το προσχέδιο.</value></data>
   <data name="Editor.ReceiptOwnerUnavailable" xml:space="preserve"><value>Οι τρέχουσες τιμές του ταξιδιού δεν είναι διαθέσιμες. Το πρόχειρό σας παραμένει σε αυτό το πρόγραμμα περιήγησης.</value></data>
   <data name="Editor.ReceiptIssuance" xml:space="preserve"><value>Η αποθήκευση δεν μπόρεσε να προετοιμαστεί. Το πρόχειρό σας διατηρήθηκε· επιλέξτε ξανά Αποθήκευση για αποστολή.</value></data>
   <data name="Editor.ReceiptNull" xml:space="preserve"><value>Δεν έχει οριστεί</value></data>

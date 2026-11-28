@@ -1,10 +1,14 @@
 import { computed, inject, nextTick, ref, shallowRef, watch } from 'vue';
 import { message as localize } from '../../../../wwwroot/js/localization/messages.js';
+import { EditorValidationError } from '../api/tripEditorApi';
 import { adoptedDraft, type createMetadataDraftState } from '../components/metadataDraft';
-import type { EditorMetadataConditionalRequest, EditorTag, EditorTripMetadata } from '../types';
+import type { EditorTag, EditorTripMetadata } from '../types';
 import { adoptBases, authorize, CustodyRefusal, heldFields, knownHistory, readCustody, remember, saveDraft, type Custody, type DraftFields, type SettingsField } from './custody';
-import { freezeRequest, issuePermit, sendAttempt } from './receiptApi';
+import { freezeRequest, issuePermit, sendAttempt, type Evidence } from './receiptApi';
+import type { WebOperation } from './receiptV2';
 import { metadataAccount, metadataWorkspaceError, receiptStatus, recoverMetadata, type Recovery } from './recoverMetadata';
+
+type CapturedSave = { generation: number; branches: { kind: WebOperation; fields: SettingsField[]; body: string }[] };
 
 type Props = { metadata: EditorTripMetadata; editorEndpoint: string; antiforgeryToken: string;
   tagOrder: string[]; tagsBySlug: Record<string, EditorTag> };
@@ -53,7 +57,7 @@ export function useMetadataCustody(props: Props, state: ReturnType<typeof create
     const fields = capture();
     if (JSON.stringify(fields) === JSON.stringify(lastCapture)) return;
     // A buffered projection keeps its comparison until the draft and review state commit together.
-    const current = lastCapture === null ? comparison.value ?? undefined : undefined;
+    const current = comparison.value ?? props.metadata;
     try {
       row.value = await saveDraft(row.value, fields, current);
       lastCapture = fields;
@@ -69,7 +73,10 @@ export function useMetadataCustody(props: Props, state: ReturnType<typeof create
   function project(view: Custody, current: EditorTripMetadata | null, fields?: DraftFields): void {
     row.value = view;
     comparison.value = current;
-    state.restore(fields ?? view.fields, current ?? props.metadata, props.tagOrder, props.tagsBySlug);
+    const tags = current?.tags;
+    state.restore(fields ?? view.fields, current ?? props.metadata,
+      tags?.map(tag => tag.slug) ?? props.tagOrder,
+      tags ? Object.fromEntries(tags.map(tag => [tag.slug, tag])) : props.tagsBySlug);
     lastCapture = fields ? null : capture();
   }
 
@@ -144,22 +151,35 @@ export function useMetadataCustody(props: Props, state: ReturnType<typeof create
     }
   }
 
-  /** Captures one submitted generation, checking the same holds for ordinary mixed metadata. */
-  async function submit(request: EditorMetadataConditionalRequest): Promise<{ metadata: EditorTripMetadata | null; continueSave: boolean } | null> {
-    if (account === null) return null;
-    await ready();
-    const fields = Object.keys(request.changes);
-    const view = row.value!;
+  /** Freezes exactly the branches selected by the current Save gesture. */
+  async function captureSave(): Promise<CapturedSave> {
+    const view = await ready();
+    const metadata = state.request();
+    const branches: CapturedSave['branches'] = [];
+    const fields = Object.keys(metadata.changes) as SettingsField[];
+    if (fields.length) branches.push({ kind: 'metadata', fields, body: freezeRequest(metadata) });
+    const tags = view.fields.tags?.desired.tags;
+    if (tags) branches.push({ kind: 'tags-replace', fields: ['tags'], body: freezeRequest({ tags }) });
+    const enabled = view.fields.shareProgressEnabled?.desired.shareProgressEnabled;
+    if (typeof enabled === 'boolean')
+      branches.push({ kind: 'editor-sharing', fields: ['shareProgressEnabled'], body: freezeRequest({ enabled }) });
+    return { generation: view.generation, branches };
+  }
+
+  /** Authorizes the captured branch only while every selected field still has its submitted generation. */
+  async function submit(branch: CapturedSave['branches'][number], generation: number) {
+    if (!account) throw new Error(custodyMessage('storage'));
+    const view = await ready();
+    if (branch.fields.some(field => !view.fields[field] || view.fields[field].generation > generation))
+      return { metadata: null, continueSave: false };
     try {
-      await authorize(view, fields);
-      if (!fields.length || fields.some(field => field !== 'name' && field !== 'notesHtml')) return null;
-      const body = freezeRequest(request);
-      const permit = await issuePermit(props.editorEndpoint, props.antiforgeryToken, account, view.tripId, body)
+      await authorize(view, branch.fields);
+      const permit = await issuePermit(props.editorEndpoint, props.antiforgeryToken, account, view.tripId, branch.body, branch.kind)
         .catch(() => { throw new Error(custodyMessage('issuance')); });
       await ready();
-      const attempt = await authorize(view, fields, { permit, body });
+      const attempt = await authorize(view, branch.fields, { permit, body: branch.body });
       if (!attempt) throw new Error(custodyMessage('storage'));
-      if (row.value) row.value = { ...row.value, attempts: [...row.value.attempts, attempt] };
+      row.value = { ...view, attempts: [...view.attempts, attempt] };
       return await execute(view, attempt);
     } catch (error) {
       if (error instanceof CustodyRefusal) {
@@ -172,33 +192,42 @@ export function useMetadataCustody(props: Props, state: ReturnType<typeof create
 
   /** A foreground response can continue only after correlated success and a fresh owner read. */
   async function execute(view: Custody, attempt: NonNullable<Awaited<ReturnType<typeof authorize>>>) {
+    let evidence: Evidence;
+    let metadata: EditorTripMetadata | null;
     try {
-      const evidence = await sendAttempt(props.editorEndpoint, props.antiforgeryToken, attempt);
+      evidence = await sendAttempt(props.editorEndpoint, props.antiforgeryToken, attempt);
       if (!['applied', 'checkedNoOp', 'terminalUnapplied'].includes(evidence.state)) throw new Error();
       await remember(view, attempt, evidence);
-      const metadata = await recover();
-      if (evidence.state === 'terminalUnapplied') {
-        feedback.value = custodyMessage('review');
-        return { metadata: null, continueSave: false };
-      }
-      const newer = row.value && Object.keys(attempt.submitted).some(field => row.value?.fields[field as SettingsField]);
-      return { metadata, continueSave: !!metadata && !hold.value.length && !stale.value && !newer };
-    } catch {
+      metadata = await recover();
+    } catch (error) {
       feedback.value = custodyMessage('held');
+      if (error instanceof EditorValidationError) throw error;
       return { metadata: null, continueSave: false };
     }
+    if (evidence.state === 'terminalUnapplied') {
+      // Show field guidance only after the correlated refusal has gone through custody settlement.
+      if (evidence.errors) return { metadata, continueSave: false, validationErrors: evidence.errors };
+      feedback.value = custodyMessage('review');
+      return { metadata, continueSave: false };
+    }
+    const newer = Object.keys(attempt.submitted).some(field => row.value?.fields[field as SettingsField]);
+    return { metadata, continueSave: !!metadata && !row.value?.attempts.some(candidate => candidate.permit.operationId === attempt.permit.operationId) && !stale.value && !newer };
   }
 
   /** Storage failure prevents dispatch, and a stale interaction must reopen the current draft. */
-  async function ready(): Promise<void> {
+  async function ready(): Promise<Custody> {
     await persist();
     if (stale.value) throw new Error(custodyMessage('stale'));
     if (!row.value || unavailable.value || busy.value) throw new Error(custodyMessage('storage'));
+    return row.value;
   }
 
   /** Discards only this displayed generation, keeping immutable attempt evidence. */
   async function discard(): Promise<boolean> {
-    if (account === null) return true;
+    if (account === null) {
+      state.restore({}, props.metadata, props.tagOrder, props.tagsBySlug);
+      return true;
+    }
     editingBlocked.value = true;
     try {
       await ready();
@@ -227,8 +256,8 @@ export function useMetadataCustody(props: Props, state: ReturnType<typeof create
     finally { editingBlocked.value = false; }
   }
 
-  return { enabled: account !== null, ready: computed(() => account === null || row.value !== null || unavailable.value),
-    hold, review, busy, stale, feedback, comparison, historicalStatus, editingBlocked, recover, submit, discard, adopt, persist };
+  return { ready: computed(() => row.value !== null && !unavailable.value), editable: computed(() => row.value !== null),
+    hold, review, busy, stale, feedback, comparison, historicalStatus, editingBlocked, recover, captureSave, submit, discard, adopt, persist };
 }
 
 /** Shared localized action feedback for the Editor and My Trips. */
@@ -237,7 +266,7 @@ export function custodyMessage(reason: 'stale' | 'held' | 'review' | 'storage' |
     case 'stale': return localize('Editor.ReceiptDraftChanged', 'This draft changed in another tab. Reopen the latest draft.');
     case 'held': return localize('Editor.ReceiptHeld', 'A previous Trip save is unconfirmed. Recover the save before sending overlapping changes.');
     case 'review': return localize('Editor.ReceiptReview', 'Review the current Trip value and explicitly use it as the comparison base.');
-    case 'storage': return localize('Editor.ReceiptStorage', 'Browser storage could not retain this edit. Keep this page open and try again.');
+    case 'storage': return localize('Editor.ReceiptStorage', 'Trip draft storage is unavailable. Close older Trip tabs, then reload or recover the draft.');
     case 'owner': return localize('Editor.ReceiptOwnerUnavailable', 'Current Trip values are unavailable. Your retained draft is available in this browser.');
     case 'issuance': return localize('Editor.ReceiptIssuance', 'The save could not be prepared. Your draft is retained and can be sent with a new Save.');
   }

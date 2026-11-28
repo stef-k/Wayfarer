@@ -169,8 +169,9 @@ public sealed class StableIdentityCryptographyTests
             // Transient C4 route evidence binds user/Trip/Segment independently of Notes and xmin.
             "Wayfarer.TripEditor.SegmentRoute.v1",
             "Wayfarer.TripEditor.SegmentRouteClear.v1",
-            // Transient Name/Notes permits bind the operation to the issuing authority.
-            "Wayfarer.TripMetadata.Permit.v1"
+            // Transient Trip permits bind the operation to the issuing authority and version.
+            "Wayfarer.TripMetadata.Permit.v1",
+            "Wayfarer.TripMetadata.Permit.v2"
         }, purposes);
     }
 

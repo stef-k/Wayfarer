@@ -2,7 +2,7 @@ import type { InjectionKey, Ref } from 'vue';
 import { message as localize } from '../../../../wwwroot/js/localization/messages.js';
 import type { EditorTripMetadata } from '../types';
 import { CustodyRefusal, readCustody, reconcile, remember, type Custody } from './custody';
-import { lookupAttempt, OwnerScopeUnavailable, readOwnerMetadata, type TerminalState } from './receiptApi';
+import { contract, lookupAttempt, OwnerScopeUnavailable, readOwnerMetadata, type TerminalState } from './receiptApi';
 
 /** Identifies the authenticated Editor bootstrap independently of the Trip graph. */
 export const metadataAccount: InjectionKey<string> = Symbol('trip-metadata-account');
@@ -27,7 +27,9 @@ export async function recoverMetadata(account: string, tripId: string, endpoint:
       return complete(async () => ({ row, current: null }));
     let current: EditorTripMetadata;
     try {
-      current = await readOwnerMetadata(endpoint, account, tripId);
+      const legacy = row.attempts.length > 0 && row.attempts.every(attempt => attempt.permit.contract === contract)
+        && Object.keys(row.fields).every(field => field === 'name' || field === 'notesHtml');
+      current = await readOwnerMetadata(endpoint, account, tripId, legacy);
     } catch (error) {
       return complete(async () =>
         ({ row: await readCustody(account, tripId), current: null, inaccessible: error instanceof OwnerScopeUnavailable }));
