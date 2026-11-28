@@ -297,6 +297,35 @@ wayfarerctl restore \
 Restore stages the database, Data Protection ring and Uploads into **fresh
 candidate volumes**, validates them offline and only then activates them. It does
 not merge key rings, seed replacement data or silently migrate an archive.
+When the candidate schema supports Trip receipts, activation writes a fresh
+Trip proof authority before the application writer starts. Resuming uses the
+same restore operation ID. Keep the restored Data Protection ring for login,
+provider credentials and other protected data. Pre-restore Trip attempts
+require manual review because they cannot settle against the new database.
+
+For a native or manual restore, keep every application writer stopped and apply
+the current migrations through the supported deployment procedure. Then run
+the following transaction in `psql` against the **candidate** database before
+opening writes. Generate a random UUID once and record it with the restore
+operation before running the transaction. Supply that same recorded UUID as
+the `trip_restore_authority` psql variable on this run and on any retry.
+
+```sql
+\set ON_ERROR_STOP on
+BEGIN;
+UPDATE public.trip_metadata_proof_authority
+SET retired_through = CASE WHEN authority_id = :'trip_restore_authority'::uuid
+                           THEN retired_through ELSE clock_timestamp() END,
+    authority_id = :'trip_restore_authority'::uuid
+WHERE singleton
+RETURNING authority_id AS initialized_trip_authority
+\gset
+COMMIT;
+```
+
+Preserve non-revoked Data Protection key files through ordinary rotation for
+each continuous database. Expired keys still verify historical Trip permits,
+including permits whose receipt history has already been cleaned up.
 
 If restore is interrupted:
 

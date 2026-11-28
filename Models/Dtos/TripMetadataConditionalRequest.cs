@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Wayfarer.Services;
+using Wayfarer.Services.TripMetadataReceipts;
 using Wayfarer.Util;
 
 namespace Wayfarer.Models.Dtos;
@@ -8,12 +9,15 @@ namespace Wayfarer.Models.Dtos;
 internal sealed record TripMetadataConditionalRequest(Dictionary<string, object?> Expected, Dictionary<string, object?> Changes)
 {
     /// <summary>Parses only the selected fields, preserving explicit null originals and rejecting ambiguous input.</summary>
-    internal static async Task<TripMetadataConditionalRequest> ReadAsync(Stream body, bool web, CancellationToken token)
+    internal static async Task<TripMetadataConditionalRequest> ReadAsync(Stream body, bool web, CancellationToken token, bool receipt = false)
     {
         try
         {
             using var document = await JsonDocument.ParseAsync(body, cancellationToken: token);
-            var root = Fields(document.RootElement, ["expected", "changes"]);
+            var root = Fields(document.RootElement, receipt ? ["expected", "changes", "receiptContract"] : ["expected", "changes"]);
+            if (receipt && (!root.TryGetValue("receiptContract", out var marker) || marker.ValueKind != JsonValueKind.String
+                || marker.GetString() != TripMetadataIdentity.Version))
+                throw Invalid("receiptContract", "A matching supported receipt contract is required.");
             if (!root.TryGetValue("expected", out var expected) || !root.TryGetValue("changes", out var changes))
                 throw Invalid("request", "Both expected and changes objects are required.");
             string[] allowed = web ? ["name", "notesHtml", "isPublic", "coverImage", "center", "zoom", "contributionPolicy", "credits"] : ["name", "notes", "contributionPolicy", "credits"];
@@ -36,6 +40,8 @@ internal sealed record TripMetadataConditionalRequest(Dictionary<string, object?
             }
             if (originals.Keys.Except(desired.Keys).Any()) throw Invalid("expected", "Originals must correspond to requested fields.");
             if (parsed.Changes.Count == 0) throw Invalid("changes", "At least one effective field change is required.");
+            if (receipt && parsed.Changes.Keys.Any(field => field is not ("name" or "notes")))
+                throw Invalid("changes", "Trip save receipts support Name and Notes only.");
             return parsed;
         }
         catch (FormatException) { throw Invalid("credits", "Check the contribution policy and complete readable credits."); }

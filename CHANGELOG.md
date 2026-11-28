@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+- Recover Name and Notes saves in the Trip Editor and My Trips after a lost
+  reply. Preserve newer drafts and ask before adopting a changed comparison
+  value. Add the corresponding protected bearer endpoints and a database
+  migration for Trip operation receipts (#1019).
+
 - Show an assigned Activity named `Unknown` in both public Timeline layouts.
   Locations without an Activity show the localized missing-data icon (#994).
 

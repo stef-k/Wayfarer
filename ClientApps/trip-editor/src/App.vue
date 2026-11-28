@@ -2,7 +2,8 @@
 import { date, message as localize } from '../../../wwwroot/js/localization/messages.js';
 import { registerLanguageDraft } from '../../../wwwroot/js/localization/languageNavigation.js';
 import { describeMapWork } from './map/mapWorkDescription';
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
+import { metadataWorkspaceError } from './recovery/recoverMetadata';
+import { computed, inject, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { providePlanningWorkspace } from './planning/planningState';
 import { EditorMutationHttpError, loadEditorState } from './api/tripEditorApi';
 import { editorModeText } from './components/editorFeedbackText';
@@ -24,7 +25,7 @@ const props = defineProps<{ config: BootstrapConfig }>();
 
 const state = ref<EditorTripState | null>(null);
 const planningWorkspace = providePlanningWorkspace(state, props.config.editorEndpoint, props.config.antiforgeryToken);
-const error = ref<string | null>(null);
+const error = inject(metadataWorkspaceError, ref<string | null>(null));
 const isLoading = ref(true);
 const workspaceElement = ref<HTMLElement | null>(null);
 const mapElement = ref<HTMLElement | null>(null);
@@ -504,7 +505,7 @@ const updateHiddenSegmentIds = (ids: Set<string>): void => {
 
     <div v-else-if="error" class="trip-editor-state trip-editor-state--error">
       <strong>{{ localize("Editor.TripEditorUnavailable", "Trip Editor unavailable") }}</strong>
-      <span>{{ error }}</span>
+      <span>{{ error }} <a :href="props.config.tripIndexUrl">{{ localize('Editor.ReceiptMyTrips', 'Recover Trip saves and drafts') }}</a></span>
     </div>
 
     <TripSidebarLayout v-else-if="state" :surface-mode="editorSurface.surfaceMode.value">

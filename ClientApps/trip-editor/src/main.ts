@@ -1,7 +1,8 @@
 import { message as localize } from '../../../wwwroot/js/localization/messages.js';
-import { createApp } from 'vue';
+import { createApp, ref } from 'vue';
 import { enableWorkspaceLanguage } from '../../../wwwroot/js/localization/languageNavigation.js';
 import type { BootstrapConfig } from './types';
+import { metadataAccount, metadataWorkspaceError } from './recovery/recoverMetadata';
 import './theme.css';
 import './map.css';
 import './styles.css';
@@ -51,5 +52,6 @@ if (compositionElement) {
   };
 
   // Load only the selected workspace. Shared Vue/Leaflet/editor code remains a common Vite chunk.
-  void import('./App.vue').then(({ default: App }) => createApp(App, { config }).mount(mountElement)).catch(() => loadFailed(mountElement));
+  void import('./App.vue').then(({ default: App }) => createApp(App, { config })
+    .provide(metadataAccount, mountElement.dataset.accountId ?? '').provide(metadataWorkspaceError, ref(null)).mount(mountElement)).catch(() => loadFailed(mountElement));
 }

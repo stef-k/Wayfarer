@@ -6,13 +6,20 @@ LABEL org.opencontainers.image.source="https://github.com/stef-k/Wayfarer" \
       org.opencontainers.image.title="Wayfarer PostgreSQL/PostGIS" \
       org.opencontainers.image.description="PostgreSQL 18.6 and PGDG PostGIS 3.6.4 on Debian Bookworm"
 
-# The base owns PGDG's signing key/repository and PostgreSQL entrypoint/data layout.
-# Pin both extension packages; reject an unexpected server upgrade during assembly.
-RUN apt-get update \
+# Bootstrap TLS roots from signed Debian packages before contacting the Bookworm
+# archive. Use the base's PGDG key to authenticate both historical PostGIS packages.
+# Restore the base's source after installation and reject an unexpected server upgrade.
+RUN mv /etc/apt/sources.list.d/pgdg.list /tmp/pgdg.list \
+    && apt-get -o APT::Update::Error-Mode=any update \
+    && apt-get install -y --no-install-recommends ca-certificates=20250419~deb12u2 \
+    && printf '%s\n' 'deb [signed-by=/usr/local/share/keyrings/postgres.gpg.asc] https://apt-archive.postgresql.org/pub/repos/apt bookworm-pgdg-archive main' \
+        > /etc/apt/sources.list.d/pgdg.list \
+    && apt-get -o APT::Update::Error-Mode=any update \
     && apt-get install -y --no-install-recommends \
         postgresql-18-postgis-3=3.6.4+dfsg-2.pgdg12+1 \
         postgresql-18-postgis-3-scripts=3.6.4+dfsg-2.pgdg12+1 \
     && test "$(dpkg-query -W -f='${Version}' postgresql-18)" = '18.6-1.pgdg12+2' \
+    && mv /tmp/pgdg.list /etc/apt/sources.list.d/pgdg.list \
     && rm -rf /var/lib/apt/lists/*
 
 # No credentials, init policy, app migrations or data are baked into this image.

@@ -3,6 +3,7 @@ import { EditorMutationHttpError, EditorValidationError } from '../api/tripEdito
 import type { ContributionPolicy, TripCredit, EditorMetadataOriginalValues, EditorMetadataConditionalRequest, EditorTag, EditorTripMetadata, EditorTripMetadataUpdateRequest } from '../types';
 import type { TripEditorMapView } from '../map/mapViewport';
 import { normalizeNotesHtml } from '../notes/notesHtml';
+import type { DraftFields, DraftValue, SettingsField } from '../recovery/custody';
 
 /** Editable metadata values; conversion preserves the existing manual-field/API contract. */
 export type MetadataDraft = {
@@ -97,12 +98,14 @@ export function buildMetadataRequest(value: MetadataDraft): EditorTripMetadataUp
 /** Fields in one metadata operation; each retains its own original even when other props refresh. */
 const metadataFields = ['name', 'notesHtml', 'isPublic', 'contributionPolicy', 'credits', 'coverImage', 'center', 'zoom'] as const;
 type MetadataField = typeof metadataFields[number];
+const settingsFields = [...metadataFields, 'tags', 'shareProgressEnabled'] as const;
 const same = (left: unknown, right: unknown): boolean => JSON.stringify(left) === JSON.stringify(right);
 
 /** Copies one logical API field, keeping a coordinate pair together. */
-function assignField(target: MetadataDraft, source: MetadataDraft, field: MetadataField): void {
+function assignField(target: Partial<MetadataDraft>, source: MetadataDraft, field: SettingsField): void {
   switch (field) {
     case 'credits': target.credits = JSON.parse(JSON.stringify(source.credits)); break;
+    case 'tags': target.tags = [...source.tags]; break;
     case 'coverImage': target.coverImageRawUrl = source.coverImageRawUrl; break;
     case 'center': target.centerLatitude = source.centerLatitude; target.centerLongitude = source.centerLongitude; break;
     default: Object.assign(target, { [field]: source[field] });
@@ -117,6 +120,8 @@ export function createMetadataDraftState(metadata: EditorTripMetadata, tagOrder:
   // Owner-selected visible replacements have an identity independent of emitted HTML.
   const notesAdoption = ref(0);
   const originals = reactive<Partial<EditorMetadataOriginalValues>>({ ...metadata.originalValues });
+  // A later edit back to the old value remains intent while an earlier save may have changed the server.
+  const retained = reactive(new Set<SettingsField>());
   // Request identity correlates its one reply; snapshots never follow parent props or later input.
   const metadataAttempt = shallowRef<{ request: EditorMetadataConditionalRequest; outcome: 'pending' | 'unknown' } | null>(null);
   // A submitted sharing write is an obligation even when a newer choice equals the old baseline.
@@ -129,7 +134,7 @@ export function createMetadataDraftState(metadata: EditorTripMetadata, tagOrder:
     const before = buildMetadataRequest(baseline);
     const incoming = toDraft(next, order, tags);
     for (const field of metadataFields) {
-      if (!metadataAttempt.value && same(current[field], before[field])) adopt(field, incoming, next);
+      if (!metadataAttempt.value && !retained.has(field) && same(current[field], before[field])) adopt(field, incoming, next);
     }
     if (same(normalizeTagNames(draft.tags), normalizeTagNames(baseline.tags))) {
       draft.tags = [...incoming.tags]; baseline.tags = [...incoming.tags];
@@ -159,7 +164,7 @@ export function createMetadataDraftState(metadata: EditorTripMetadata, tagOrder:
     const expected: Partial<EditorMetadataOriginalValues> = {};
     const changes: Partial<EditorTripMetadataUpdateRequest> = {};
     for (const field of metadataFields) {
-      if (same(current[field], before[field])) continue;
+      if (!retained.has(field) && same(current[field], before[field])) continue;
       if (!Object.hasOwn(originals, field)) throw new Error('Original Trip values are unavailable. Keep your draft and reload before saving.');
       Object.assign(expected, { [field]: originals[field] });
       Object.assign(changes, { [field]: current[field] });
@@ -168,8 +173,8 @@ export function createMetadataDraftState(metadata: EditorTripMetadata, tagOrder:
   };
 
   /** Pins immutable submitted originals/changes independently of both confirmed and latest values. */
-  const beginMetadata = (): EditorMetadataConditionalRequest => {
-    const submitted = JSON.parse(JSON.stringify(request())) as EditorMetadataConditionalRequest;
+  const beginMetadata = (prepared = request()): EditorMetadataConditionalRequest => {
+    const submitted = JSON.parse(JSON.stringify(prepared)) as EditorMetadataConditionalRequest;
     for (const values of [submitted.expected, submitted.changes]) {
       for (const value of Object.values(values)) if (value && typeof value === 'object') Object.freeze(value);
       Object.freeze(values);
@@ -230,6 +235,7 @@ export function createMetadataDraftState(metadata: EditorTripMetadata, tagOrder:
   /** Reset/close/reopen cannot discard an unresolved metadata attempt or any newer metadata intent. */
   const reset = (next: EditorTripMetadata, order: string[], tags: Record<string, EditorTag>): void => {
     if (metadataAttempt.value) return;
+    retained.clear();
     const retainedSharing = sharingAttempt.value ? { desired: draft.shareProgressEnabled, confirmed: baseline.shareProgressEnabled } : null;
     Object.assign(draft, toDraft(next, order, tags));
     Object.assign(baseline, toDraft(next, order, tags));
@@ -241,7 +247,38 @@ export function createMetadataDraftState(metadata: EditorTripMetadata, tagOrder:
     Object.assign(originals, next.originalValues ?? {});
   };
 
-  return { draft, baseline, notesAdoption, metadataAttempt, sharingAttempt, refresh, request, beginMetadata, failMetadata, acknowledge, acknowledgeSharing, reset };
+  /** Captures only authored settings and their exact comparison bases. */
+  const capture = (hold: SettingsField[]): DraftFields => {
+    const fields: DraftFields = {};
+    for (const field of settingsFields) {
+      const desired: Partial<MetadataDraft> = {};
+      const base: Partial<MetadataDraft> = {};
+      assignField(desired, draft, field);
+      assignField(base, baseline, field);
+      if (!retained.has(field) && !hold.includes(field) && same(desired, base)) continue;
+      fields[field] = { desired, baseline: base, original: originals[field as MetadataField] };
+    }
+    return JSON.parse(JSON.stringify(fields)) as DraftFields;
+  };
+
+  /** Overlays the durable authored generation onto fresh confirmed settings. */
+  const restore = (fields: DraftFields, next: EditorTripMetadata, order: string[], tags: Record<string, EditorTag>): void => {
+    const previousNotes = draft.notesHtml;
+    reset(next, order, tags);
+    for (const [key, value] of Object.entries(fields)) {
+      const field = key as SettingsField;
+      Object.assign(draft, value.desired);
+      Object.assign(baseline, value.baseline);
+      if (field !== 'tags' && field !== 'shareProgressEnabled') {
+        Object.assign(originals, { [field]: value.original });
+        if (same(value.desired, value.baseline)) retained.add(field);
+      }
+    }
+    if (draft.notesHtml !== previousNotes) notesAdoption.value++;
+  };
+
+  return { draft, baseline, notesAdoption, metadataAttempt, sharingAttempt, refresh, request, beginMetadata, failMetadata, acknowledge, acknowledgeSharing, reset, capture, restore, retained };
+
 }
 
 /** A usable scoped reply supplies complete typed originals before any field or parent can advance. */
@@ -308,4 +345,11 @@ export function normalizeTagNames(values: string[]): string[] {
 /** Share the case-insensitive identity used by tag editing and suggestions. */
 export function normalizeTagNameKey(value: string): string {
   return value.trim().toLocaleLowerCase();
+}
+
+/** Builds an explicit new base from the published owner value while retaining the authored edit. */
+export function adoptedDraft(field: SettingsField, entry: DraftValue, current: EditorTripMetadata): DraftValue {
+  const baseline: Partial<MetadataDraft> = {};
+  assignField(baseline, { ...toMetadataDraft(current), tags: [] }, field);
+  return { desired: entry.desired, baseline, original: current.originalValues?.[field as MetadataField] };
 }

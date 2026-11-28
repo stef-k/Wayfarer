@@ -25,6 +25,7 @@ public static class DataProtectionAuthority
             .PersistKeysToFileSystem(new DirectoryInfo(ring.Path));
         if (readOnlyKeys) protection.DisableAutomaticKeyGeneration();
         builder.Services.AddSingleton(ring);
+        builder.Services.AddSingleton<TripMetadataReceipts.TripMetadataProofs>();
     }
 
     /// <summary>Selects one authority in place, refusing competing default rings without an explicit override.</summary>
