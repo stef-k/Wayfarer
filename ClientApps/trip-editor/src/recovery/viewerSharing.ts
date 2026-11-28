@@ -1,5 +1,6 @@
 import { message } from '../../../../wwwroot/js/localization/messages.js';
 import { initShareProgressToggle } from '../../../../wwwroot/js/Areas/User/Trip/shareProgressToggle.js';
+import { EditorMutationHttpError } from '../api/tripEditorApi';
 import { adoptedDraft } from '../components/metadataDraft';
 import { adoptBases, authorize, CustodyRefusal, heldFields, readCustody, remember, saveDraft, sharingBase, type Custody } from './custody';
 import { freezeRequest, issuePermit, OwnerScopeUnavailable, readOwnerMetadata, sendAttempt } from './receiptApi';
@@ -95,8 +96,15 @@ function mount(root: HTMLElement, account: string, tripId: string): void {
       await remember(row, attempt, evidence);
       await refresh();
       if (evidence.state === 'terminalUnapplied') feedback = receiptStatus(evidence.state);
-    } catch {
+    } catch (error) {
       feedback = custodyMessage('held');
+      // Access guidance accompanies the hold while recovery settles the saved attempt.
+      if (error instanceof EditorMutationHttpError) {
+        if (error.status === 401) feedback += ' ' + message('Viewer.ShareSessionEnded',
+          'Your session has ended or your account is disabled. Sign in again. Keep any unsaved changes before leaving this page.');
+        else if (error.status === 404) feedback += ' ' + message('Viewer.ShareAuthorityUnavailable',
+          'This Trip is unavailable or you no longer have permission to change its sharing settings.');
+      }
     }
   }
 

@@ -1,5 +1,5 @@
 import type { EditorTripMetadata, ValidationProblemDetails } from '../types';
-import { captureMutationPublication, EditorValidationError } from '../api/tripEditorApi';
+import { captureMutationPublication, EditorMutationHttpError, EditorValidationError } from '../api/tripEditorApi';
 import { keysAre, rejectDuplicateMembers, uuid, v2Contract, validDigests, validTags, validV2Refusal, validV2Success, validValidationErrors,
   webWriteRoute, type WebOperation } from './receiptV2';
 
@@ -110,6 +110,9 @@ export async function sendAttempt(endpoint: string, token: string, attempt: Atte
   const invalid = response.status === 400 ? response.clone() : null;
   try { return await readEvidence(response, attempt, false); }
   catch (error) {
+    // Keep access failures available for guidance after checking for a correlated receipt.
+    if (response.status === 401 || response.status === 404)
+      throw new EditorMutationHttpError('Trip save confirmation is unavailable', response.status);
     // A validation problem can guide editing but supplies no settlement for this dispatch.
     const problem = await invalid?.json().catch(() => null) as ValidationProblemDetails | undefined;
     if (problem?.code === 'mutation-request-invalid' && (attempt.permit.contract === contract ? problem.errors

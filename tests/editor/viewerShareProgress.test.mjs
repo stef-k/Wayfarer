@@ -4,6 +4,9 @@ import test from 'node:test';
 import { chromium, expect } from '@playwright/test';
 import { build } from 'esbuild';
 
+const trip = '12345678-1234-4234-8234-123456789abc';
+const endpoint = '/User/Trip/' + trip + '/share-progress/conditional';
+
 /** Checks that both switches, both badges and the copy link reflect saved state and retained intent. */
 async function assertSharingDisplay(page, enabled, { checked = enabled, disabled = false } = {}) {
   for (const id of ['shareProgressSwitch', 'modalShareProgressSwitch']) {
@@ -13,16 +16,14 @@ async function assertSharingDisplay(page, enabled, { checked = enabled, disabled
   }
   for (const id of ['shareProgressStatus', 'modalShareStatus'])
     await expect(page.locator('#' + id)).toHaveText(enabled ? 'Δημόσια ορατό' : 'Ιδιωτικό');
-  assert.equal(await page.locator('#btnCopyProgressLink').evaluate(button => button.classList.contains('d-none')), !enabled);
+  await expect(page.locator('#btnCopyProgressLink')).toBeVisible({ visible: enabled });
 }
 
-/** Runs the receipt-aware Viewer against controlled replies and the actual Greek messages. */
-test('Viewer sharing stays confirmed during a save and distinguishes failed replies', async t => {
+/** Prepares the receipt-aware Viewer with the Greek catalog, ready for each test's controlled replies. */
+async function prepareViewer(t) {
   const browser = await chromium.launch();
   t.after(() => browser.close());
   const page = await browser.newPage();
-  const trip = '12345678-1234-4234-8234-123456789abc';
-  const endpoint = '/User/Trip/' + trip + '/share-progress/conditional';
   const script = await build({ stdin: { contents: `
     export { tripReceiptReplies, tripReceipt } from './tests/editor/tripReceiptReplies.mjs';
   `, resolveDir: process.cwd() }, bundle: true, write: false, format: 'iife', globalName: 'Replies' });
@@ -40,13 +41,21 @@ test('Viewer sharing stays confirmed during a save and distinguishes failed repl
     </section>
     <script id="wayfarer-locale" type="application/json"></script>` }));
   await page.goto('http://localhost/');
+  await page.addStyleTag({ path: 'wwwroot/lib/bootstrap/dist/css/bootstrap.min.css' });
   await page.addScriptTag({ content: script.outputFiles[0].text });
   const catalogs = await Promise.all(['Viewer', 'Editor'].map(name => readFile('Resources/' + name + '.el-GR.resx', 'utf8')));
-  await page.evaluate(({ catalogs, trip }) => {
+  await page.evaluate(catalogs => {
     const entries = catalogs.flatMap(source => Array.from(new DOMParser().parseFromString(source, 'application/xml').querySelectorAll('data')));
     const messages = Object.fromEntries(entries.map(item => [item.getAttribute('name'), item.querySelector('value').textContent]));
     document.getElementById('wayfarer-locale').textContent = JSON.stringify({ locale: 'el-GR', fallback: 'en-US', messages, english: {} });
+  }, catalogs);
+  return { page, viewerScript: viewer.outputFiles[0].text };
+}
 
+/** Exercises lost replies, explicit recovery and a correlated publication refusal. */
+test('Viewer sharing stays confirmed during a save and distinguishes failed replies', async t => {
+  const { page, viewerScript } = await prepareViewer(t);
+  await page.evaluate(trip => {
     const originalValues = { name: 'Trip', notesHtml: null };
     let current = { id: trip, isPublic: true, shareProgressEnabled: false, originalValues };
     let saved;
@@ -69,8 +78,8 @@ test('Viewer sharing stays confirmed during a save and distinguishes failed repl
       }
       return Response.json(saved);
     }, { lookup: () => { window.lookups++; return Response.json(saved); } });
-  }, { catalogs, trip });
-  await page.addScriptTag({ content: viewer.outputFiles[0].text });
+  }, trip);
+  await page.addScriptTag({ content: viewerScript });
 
   const main = page.locator('#shareProgressSwitch');
   const modal = page.locator('#modalShareProgressSwitch');
@@ -100,3 +109,42 @@ test('Viewer sharing stays confirmed during a save and distinguishes failed repl
     [endpoint, 'POST', true], [endpoint, 'POST', false], [endpoint, 'POST', true]
   ]);
 });
+
+/** Exercises each rejected sharing POST and the later correlated recovery of its held attempt. */
+for (const [statusCode, code, guidance] of [
+  [401, 'mutation-authority-unavailable', /Η συνεδρία σας έληξε.*Συνδεθείτε ξανά/],
+  [404, 'mutation-scope-unavailable', /Αυτό το ταξίδι δεν είναι διαθέσιμο ή δεν έχετε πλέον δικαίωμα/]
+]) {
+  test(`Viewer sharing keeps the attempt held and shows localized guidance after ${statusCode}`, async t => {
+    const { page, viewerScript } = await prepareViewer(t);
+    await page.evaluate(({ trip, statusCode, code }) => {
+      const originalValues = { name: 'Trip', notesHtml: null };
+      const current = { id: trip, isPublic: true, shareProgressEnabled: true, originalValues };
+      window.writes = [];
+      window.fetch = Replies.tripReceiptReplies(() => current, async (url, init) => {
+        window.writes.push([url, init.method, JSON.parse(init.body).enabled]);
+        return Response.json({ status: statusCode, code }, { status: statusCode });
+      }, { lookup: permit => {
+        current.shareProgressEnabled = false;
+        return Response.json(Replies.tripReceipt(permit, 'applied', { sharingResult: { isPublic: true, shareProgressEnabled: false } }));
+      } });
+    }, { trip, statusCode, code });
+    await page.addScriptTag({ content: viewerScript });
+
+    const status = page.getByRole('status');
+    await assertSharingDisplay(page, true);
+    await page.locator('#modalShareProgressSwitch').click();
+    await expect(status).toContainText('Μια προηγούμενη αποθήκευση ταξιδιού δεν έχει επιβεβαιωθεί.');
+    await expect(status).toContainText('Επιλογή κοινοποίησης που διατηρήθηκε (Ανενεργό).');
+    await assertSharingDisplay(page, true, { checked: false, disabled: true });
+    await expect(page.locator('[data-submit]')).toBeHidden();
+    await page.locator('#shareProgressSwitch').click({ force: true });
+    assert.deepEqual(await page.evaluate(() => window.writes), [[endpoint, 'POST', false]]);
+    await expect(status).toContainText(guidance, { timeout: 1500 });
+
+    await page.locator('[data-recover]').click();
+    await expect(status).toContainText('Η προηγούμενη αποθήκευση του ταξιδιού επιβεβαιώθηκε.');
+    await assertSharingDisplay(page, false);
+    assert.deepEqual(await page.evaluate(() => window.writes), [[endpoint, 'POST', false]]);
+  });
+}
