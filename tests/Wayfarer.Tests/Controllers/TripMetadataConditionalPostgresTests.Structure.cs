@@ -54,9 +54,13 @@ public sealed partial class TripMetadataConditionalPostgresTests
         Assert.False((await changed.Content.ReadFromJsonAsync<JsonElement>()).TryGetProperty("state", out _));
     }
 
-    /// <summary>Rotation after authentication and before the apply lock gives no correlated evidence or effects.</summary>
-    [PostgresFact]
-    public async Task StructureReceipt_LateCookieRotationRefusesApply()
+    /// <summary>Rotation between authentication and the locked authority check refuses each typed receipt invocation.</summary>
+    [PostgresTheory]
+    [InlineData("issue")]
+    [InlineData("apply")]
+    [InlineData("replay")]
+    [InlineData("lookup")]
+    public async Task StructureReceipt_LateCookieRotationRefusesInvocation(string action)
     {
         var trip = await SeedAsync();
         await using var db = fixture.CreateContext();
@@ -67,9 +71,22 @@ public sealed partial class TripMetadataConditionalPostgresTests
         var route = $"/api/trips/{trip.Id}/editor/regions/{region.Id}/conditional/receipt";
         var body = StructureBody(region.Name);
         var permit = await IssueStructureAsync(web, trip, region, route, body);
+        var hasHistory = action is "lookup" or "replay";
+        if (hasHistory)
+        {
+            using var applied = await TripMetadataReceiptHttp.SendAsync(web, HttpMethod.Patch, route, permit, body);
+            await TripMetadataReceiptHttp.EvidenceAsync(applied, permit, "applied");
+            await db.Regions.Where(row => row.Id == region.Id).ExecuteDeleteAsync();
+        }
 
         gate.Armed = true;
-        var pending = TripMetadataReceiptHttp.SendAsync(web, HttpMethod.Patch, route, permit, body);
+        var pending = action switch
+        {
+            "issue" => web.PostAsJsonAsync(route + "/operations", new { contract = TripMetadataIdentity.StructureVersion,
+                requestDigest = permit.GetProperty("requestDigest").GetString() }),
+            "lookup" => LookupStructureAsync(web, route, permit),
+            _ => TripMetadataReceiptHttp.SendAsync(web, HttpMethod.Patch, route, permit, body)
+        };
         try
         {
             await gate.Reached.Task.WaitAsync(TimeSpan.FromSeconds(8));
@@ -83,10 +100,15 @@ public sealed partial class TripMetadataConditionalPostgresTests
         var error = await refusal.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal("mutation-authority-unavailable", error.GetProperty("code").GetString());
         Assert.False(error.TryGetProperty("operationId", out _));
-        Assert.Equal(region.Name, await db.Regions.Where(row => row.Id == region.Id).Select(row => row.Name).SingleAsync());
+        Assert.False(error.TryGetProperty("historicalOutcome", out _));
+        Assert.False(error.TryGetProperty("proof", out _));
+        Assert.Equal(hasHistory ? null : region.Name,
+            await db.Regions.Where(row => row.Id == region.Id).Select(row => row.Name).SingleOrDefaultAsync());
+        if (!hasHistory)
+            Assert.Equal(trip.UpdatedAt, await db.Trips.Where(row => row.Id == trip.Id).Select(row => row.UpdatedAt).SingleAsync());
         using var current = await WebAsync(app, trip.UserId);
         using var lookup = await LookupStructureAsync(current, route, permit);
-        await TripMetadataReceiptHttp.EvidenceAsync(lookup, permit, "unobserved");
+        await TripMetadataReceiptHttp.EvidenceAsync(lookup, permit, hasHistory ? "applied" : "unobserved");
     }
 
     /// <summary>Creates a normal Region under the fixture's disposable owned Trip.</summary>
