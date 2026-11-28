@@ -79,6 +79,7 @@ public sealed partial class TripMetadataConditionalPostgresTests
             await db.Regions.Where(row => row.Id == region.Id).ExecuteDeleteAsync();
         }
 
+        var freshness = await db.Trips.Where(row => row.Id == trip.Id).Select(row => row.UpdatedAt).SingleAsync();
         gate.Armed = true;
         var pending = action switch
         {
@@ -105,7 +106,7 @@ public sealed partial class TripMetadataConditionalPostgresTests
         Assert.Equal(hasHistory ? null : region.Name,
             await db.Regions.Where(row => row.Id == region.Id).Select(row => row.Name).SingleOrDefaultAsync());
         if (!hasHistory)
-            Assert.Equal(trip.UpdatedAt, await db.Trips.Where(row => row.Id == trip.Id).Select(row => row.UpdatedAt).SingleAsync());
+            Assert.Equal(freshness, await db.Trips.Where(row => row.Id == trip.Id).Select(row => row.UpdatedAt).SingleAsync());
         using var current = await WebAsync(app, trip.UserId);
         using var lookup = await LookupStructureAsync(current, route, permit);
         await TripMetadataReceiptHttp.EvidenceAsync(lookup, permit, hasHistory ? "applied" : "unobserved");
