@@ -75,6 +75,26 @@ test.beforeAll(async () => {
   await writeFile(destination, JSON.stringify({ run: process.env.WAYFARER_E2E_RUN_ID, hashes }, null, 2));
 });
 
+/** Sends the old Editor continuation and old Viewer toggle from authenticated tab contexts. */
+async function verifySupersededTabs(oldEditor: Page, token: string, viewer: Page, sharingWas: boolean): Promise<void> {
+  await viewer.goto(`/User/Trip/View/${trip}`);
+  const viewerToken = await viewer.locator('#viewer-sharing-recovery input[name="__RequestVerificationToken"]').inputValue();
+  const tags = await oldEditor.request.put(editor + '/tags', { data: { tags: ['Superseded legacy tags'] },
+    headers: { RequestVerificationToken: token } });
+  const sharing = await oldEditor.request.patch(editor + '/share-progress', { data: { enabled: !sharingWas },
+    headers: { RequestVerificationToken: token } });
+  const toggle = await viewer.request.post(`/User/Trip/ToggleShareProgress?id=${trip}&enabled=${!sharingWas}`,
+    { headers: { RequestVerificationToken: viewerToken, 'Content-Type': 'application/x-www-form-urlencoded' } });
+  for (const refused of [tags, sharing, toggle]) {
+    expect(refused.status()).toBe(409);
+    expect(await refused.json()).toMatchObject({ code: 'trip-write-upgrade-required' });
+  }
+  const read = await (await oldEditor.request.get(metadata + '?contract=' + v2)).json();
+  expect(read.tags).toEqual([]);
+  expect(read.metadata.shareProgressEnabled).toBe(sharingWas);
+  await viewer.close();
+}
+
 test('Trip controls retain a v1 attempt through blocked custody migration', async ({ page, context }) => {
   test.setTimeout(60_000);
   const token = await signIn(page);
@@ -114,6 +134,7 @@ test('Trip controls retain a v1 attempt through blocked custody migration', asyn
   await expect(newer.getByText('Close older Trip tabs', { exact: false })).toBeVisible();
   await expect(form(newer)).toHaveAttribute('inert', '');
   expect(writes).toEqual([]);
+  await verifySupersededTabs(page, token, await context.newPage(), snapshot.metadata.shareProgressEnabled);
   await page.evaluate(() => (window as unknown as { v1Custody: IDBDatabase }).v1Custody.close());
 
   const ownerRead = newer.waitForResponse(response => new URL(response.url()).pathname === metadata
