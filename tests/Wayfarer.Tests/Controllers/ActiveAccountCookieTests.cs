@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.TestHost;
@@ -39,7 +40,7 @@ public sealed class ActiveAccountCookieTests : TestBase
         AssertRejected(missing, path.StartsWith("/api"));
     }
 
-    /// <summary>Both original sharing writes reject before persistence, including fetch navigation and error normalization.</summary>
+    /// <summary>Both legacy sharing routes require an upgrade for active sessions and delete inactive sessions.</summary>
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -59,9 +60,10 @@ public sealed class ActiveAccountCookieTests : TestBase
         client.DefaultRequestHeaders.Add("Sec-Fetch-Mode", "cors");
         var path = editor ? $"/api/trips/{trip.Id}/editor/share-progress" : $"/User/Trip/ToggleShareProgress?id={trip.Id}&enabled=true";
         using var active = editor ? await client.PatchAsJsonAsync(path, new { enabled = true }) : await client.PostAsync(path, null);
-        Assert.True(active.StatusCode == HttpStatusCode.OK, await active.Content.ReadAsStringAsync());
-        Assert.True(trip.ShareProgressEnabled);
-        trip.ShareProgressEnabled = false;
+        Assert.Equal(HttpStatusCode.Conflict, active.StatusCode);
+        var refusal = await active.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("trip-write-upgrade-required", refusal.GetProperty("code").GetString());
+        Assert.False(trip.ShareProgressEnabled);
         db.Users.Find("owner")!.IsActive = false;
         await db.SaveChangesAsync();
         using var denied = editor ? await client.PatchAsJsonAsync(path, new { enabled = true }) : await client.PostAsync(path, null);
