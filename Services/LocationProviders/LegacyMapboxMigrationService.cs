@@ -29,11 +29,22 @@ public sealed class LegacyMapboxMigrationService(
     }
 
     /// <summary>Converges the current user's legacy state under one transaction and bounded locks.</summary>
-    public async Task<LegacyMapboxMigrationResult> MigrateAsync(string userId, CancellationToken cancellationToken = default)
+    public Task<LegacyMapboxMigrationResult> MigrateAsync(string userId, CancellationToken cancellationToken = default) =>
+        MigrateAsync(userId, fenceDeletion: false, cancellationToken);
+
+    /// <summary>Orders preparation and first profile insertion with supported account erasure.</summary>
+    internal Task<LegacyMapboxMigrationResult> MigrateForProtectedGeocodingAsync(string userId, CancellationToken token) =>
+        MigrateAsync(userId, fenceDeletion: true, token);
+
+    /// <summary>Loads migration inputs only after taking the requested per-account locks.</summary>
+    private async Task<LegacyMapboxMigrationResult> MigrateAsync(string userId, bool fenceDeletion, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(userId);
         await using var transaction = dbContext.Database.IsRelational()
             ? await dbContext.Database.BeginTransactionAsync(cancellationToken) : null;
+
+        if (fenceDeletion && dbContext.Database.IsNpgsql())
+            await LocationDeletionFence.AcquireAsync(dbContext, userId, cancellationToken);
 
         // Row locks cannot serialize a first assessment when profile/selection rows do not exist.
         // This transaction-scoped, migration-only user lock precedes the established row-lock order.

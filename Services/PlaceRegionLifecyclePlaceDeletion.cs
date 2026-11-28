@@ -1,6 +1,7 @@
 using System.Data;
 using Microsoft.EntityFrameworkCore;
 using Wayfarer.Models.Dtos.Editor;
+using Wayfarer.Services.TripMetadataReceipts;
 
 namespace Wayfarer.Services;
 
@@ -14,22 +15,31 @@ public sealed partial class PlaceRegionLifecycleService
     }
 
     /// <summary>One locked compare/delete/reconcile transaction; no automatic retry or ambiguous success.</summary>
-    public async Task<EditorMutationResult<PlaceDeletionResultDto>> ConfirmPlaceDeletionAsync(Guid tripId, Guid placeId,
-        string userId, string? confirmationToken, CancellationToken token, Func<CancellationToken, Task<bool>>? authority = null)
+    public Task<EditorMutationResult<PlaceDeletionResultDto>> ConfirmPlaceDeletionAsync(Guid tripId, Guid placeId,
+        string userId, string? confirmationToken, CancellationToken token, Func<CancellationToken, Task<bool>>? authority = null) =>
+        ConfirmPlaceDeletionCoreAsync(tripId, placeId, userId, confirmationToken, token, authority);
+
+    /// <summary>Runs durable receipt capture without opening a nested transaction.</summary>
+    private async Task<EditorMutationResult<PlaceDeletionResultDto>> ConfirmPlaceDeletionCoreAsync(Guid tripId, Guid placeId,
+        string userId, string? confirmationToken, CancellationToken token, Func<CancellationToken, Task<bool>>? authority,
+        Func<PlaceDeletionSnapshot, EditorMutationResult<PlaceDeletionResultDto>, Task>? capture = null)
     {
         if (string.IsNullOrWhiteSpace(confirmationToken))
-            throw new TripMetadataMutationRejected(409, "place-deletion-confirmation-required", "Review the current deletion preview and explicitly confirm.");
-        var approval = _confirmation.ReadPlaceDeletion(confirmationToken);
+            throw new TripMetadataMutationRejected(409, capture != null ? "mutation-review-required" : "place-deletion-confirmation-required", "Review the current deletion preview and explicitly confirm.");
+        PlaceDeletionApproval approval;
+        try { approval = _confirmation.ReadPlaceDeletion(confirmationToken); }
+        catch (TripMetadataMutationRejected) when (capture != null) { throw StalePlaceDeletion(); }
         if (approval.UserId != userId || approval.TripId != tripId || approval.PlaceId != placeId || _confirmation.IsPlaceDeletionExpired(approval)) throw StalePlaceDeletion();
         var candidates = await ReadPlaceDeletionAsync(tripId, placeId, userId, token);
         var tracker = LifecycleTrackerSnapshot.Capture(_dbContext);
         var scope = new LifecycleRecoveryScope(candidates.Locks.PlaceIds, candidates.Locks.RegionIds, candidates.Locks.SegmentIds);
         var isolated = false;
         var commitStarted = false;
-        await using var transaction = await BeginTransactionAsync(token, IsolationLevel.ReadCommitted);
+        await using var transaction = capture == null ? await BeginTransactionAsync(token, IsolationLevel.ReadCommitted) : null;
         try
         {
             await LockAsync(candidates.Locks, token);
+            if (capture != null) await LockVisitLinksAsync([placeId], token);
             await LockDeletionAuthorityAsync(tripId, userId, authority, token);
             var current = await ReadPlaceDeletionAsync(tripId, placeId, userId, token);
             if (current.Locks.RequiresLocksOutside(candidates.Locks) || _confirmation.IsPlaceDeletionExpired(approval)
@@ -37,12 +47,13 @@ public sealed partial class PlaceRegionLifecycleService
             foreach (var entry in _dbContext.ChangeTracker.Entries().ToArray()) entry.State = EntityState.Detached;
             isolated = true;
             var result = await ApplyPlaceDeletionAsync(current, userId, token);
+            if (capture != null) await capture(current, result);
             commitStarted = true;
             if (transaction != null) await transaction.CommitAsync(token);
             RestoreAfterRegionDeletion(scope, tracker);
             return result;
         }
-        catch (Exception original)
+        catch (Exception original) when (capture == null)
         {
             if (isolated) await RecoverAsync(original, transaction, scope, tracker);
             else await RecoverUnappliedRegionDeletionAsync(original, transaction);

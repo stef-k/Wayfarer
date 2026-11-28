@@ -9,7 +9,7 @@ namespace Wayfarer.Models.Dtos;
 internal sealed record AreaConditionalRequest(Guid RegionId, Dictionary<string, object?> Expected, Dictionary<string, object?> Changes)
 {
     /// <summary>Preserves nullable originals and rejects duplicates, unknown fields and empty effective changes.</summary>
-    internal static async Task<AreaConditionalRequest> ReadAsync(Stream body, bool web, CancellationToken token)
+    internal static async Task<AreaConditionalRequest> ReadAsync(Stream body, bool web, CancellationToken token, bool protectedWrite = false)
     {
         try
         {
@@ -17,7 +17,8 @@ internal sealed record AreaConditionalRequest(Guid RegionId, Dictionary<string, 
             var root = Fields(document.RootElement, ["expected", "changes"]);
             if (!root.TryGetValue("expected", out var expected) || !root.TryGetValue("changes", out var changes))
                 throw Invalid("request", "Both expected and changes objects are required.");
-            string[] allowed = web ? ["name", "notesHtml", "fillHex", "geometry"] : ["notes"];
+            string[] allowed = web ? ["name", "notesHtml", "fillHex", "geometry"]
+                : protectedWrite ? ["name", "notes", "fillHex"] : ["notes"];
             var originals = Fields(expected, [.. allowed, "regionId"]);
             var desired = Fields(changes, allowed);
             if (!originals.Remove("regionId", out var parent) || parent.ValueKind != JsonValueKind.String

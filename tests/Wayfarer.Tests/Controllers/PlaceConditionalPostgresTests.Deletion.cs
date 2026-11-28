@@ -1,4 +1,6 @@
 using System.Net;
+using Wayfarer.Services.TripMetadataReceipts;
+using Wayfarer.Models.Planning;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
@@ -31,11 +33,15 @@ public sealed partial class PlaceConditionalPostgresTests
         var candidate = new PlaceVisitCandidate { Id = Guid.NewGuid(), UserId = place.UserId, PlaceId = place.Id,
             FirstHitUtc = DateTime.UtcNow, LastHitUtc = DateTime.UtcNow, ConsecutiveHits = 1 };
         if (dependents) { db.PlaceVisitCandidates.Add(candidate); await db.SaveChangesAsync(); }
+        var plan = new PlanningAggregate(1, [new(Guid.NewGuid(), new("unspecified"))]);
+        if (web && g != null)
+            await db.Segments.Where(row => row.FromPlaceId == place.Id || row.ToPlaceId == place.Id)
+                .ExecuteUpdateAsync(set => set.SetProperty(row => row.Planning, plan));
         await using var app = await StartAsync(db);
         using var client = web ? await WebAsync(app, place.UserId) : Bearer(app, place.UserId);
         var path = DeletionPath(place, web);
         var before = await StoredStructureRowsAsync(place.Region.TripId);
-        using var missing = await client.PostAsJsonAsync(path + "/deletion", new { });
+        using var missing = await DispatchPlaceDeletionAsync(client, place, web, new { });
         Assert.Equal(HttpStatusCode.Conflict, missing.StatusCode);
         var preview = await DeletionPreviewAsync(client, path);
         Assert.Equal(before, await StoredStructureRowsAsync(place.Region.TripId));
@@ -46,15 +52,40 @@ public sealed partial class PlaceConditionalPostgresTests
         // Disjoint Trip edits survive freshness stamping; future timestamps cannot be rewound.
         var future = DateTime.UtcNow.AddDays(1);
         await db.Trips.Where(t => t.Id == place.Region.TripId).ExecuteUpdateAsync(u => u.SetProperty(t => t.Name, "New Trip name").SetProperty(t => t.UpdatedAt, future));
-        using var response = await client.PostAsJsonAsync(path + "/deletion", new { confirmationToken = preview.Confirmation.Token });
+        using var response = await DispatchPlaceDeletionAsync(client, place, web, new { confirmationToken = preview.Confirmation.Token });
         Assert.True(response.StatusCode == HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
-        var result = (await response.Content.ReadFromJsonAsync<EditorMutationResult<PlaceDeletionResultDto>>())!;
-        Assert.Equal(new[] { place.Id }, result.DeletedIds.Places);
-        Assert.Equal(preview.DeletedSegments.Ids, result.DeletedIds.Segments);
-        Assert.Equal(preview.UpdatedSegments.Ids, result.Data.UpdatedSegmentIds);
-        Assert.Equal(preview.PlaceOrderIds, result.Affected.PlaceOrdersByRegionId[place.RegionId]);
-        Assert.Equal(preview.SegmentOrderIds, result.Affected.SegmentOrder);
-        Assert.All(result.Affected.Segments, s => Assert.False(string.IsNullOrEmpty(s.AggregateConcurrencyToken)));
+        var result = await response.Content.ReadFromJsonAsync<JsonElement>();
+        if (web)
+        {
+            Assert.Equal("applied", result.GetProperty("state").GetString());
+            var history = result.GetProperty("result");
+            Assert.Equal(place.Id, history.GetProperty("id").GetGuid());
+            var effects = history.GetProperty("segmentEffects");
+            Assert.Equal(preview.DeletedSegments.Ids, effects.GetProperty("deletedSegmentIds").EnumerateArray().Select(id => id.GetGuid()));
+            Assert.All(preview.UpdatedSegments.Ids, id =>
+                Assert.Contains(effects.GetProperty("updatedSegments").EnumerateArray(), row => row.GetProperty("id").GetGuid() == id));
+            Assert.Equal(preview.PlaceOrderIds, history.GetProperty("placeOrder").GetProperty("items").EnumerateArray()
+                .Select(row => row.GetProperty("id").GetGuid()));
+            var planning = history.GetProperty("deletedDependentPlanning").EnumerateArray().ToArray();
+            if (dependents)
+            {
+                var removed = Assert.Single(planning);
+                Assert.Equal(preview.DeletedSegments.Ids.Single(), removed.GetProperty("id").GetGuid());
+                Assert.Equal("segment", removed.GetProperty("type").GetString());
+                Assert.Equal(TripStructureDigests.Planning(plan), removed.GetProperty("planningDigest").GetString());
+            }
+            else Assert.Empty(planning);
+        }
+        else
+        {
+            var legacy = result.Deserialize<EditorMutationResult<PlaceDeletionResultDto>>(JsonSerializerOptions.Web)!;
+            Assert.Equal(new[] { place.Id }, legacy.DeletedIds.Places);
+            Assert.Equal(preview.DeletedSegments.Ids, legacy.DeletedIds.Segments);
+            Assert.Equal(preview.UpdatedSegments.Ids, legacy.Data.UpdatedSegmentIds);
+            Assert.Equal(preview.PlaceOrderIds, legacy.Affected.PlaceOrdersByRegionId[place.RegionId]);
+            Assert.Equal(preview.SegmentOrderIds, legacy.Affected.SegmentOrder);
+            Assert.All(legacy.Affected.Segments, s => Assert.False(string.IsNullOrEmpty(s.AggregateConcurrencyToken)));
+        }
         await using var verify = fixture.CreateContext();
         Assert.False(await verify.Places.AnyAsync(p => p.Id == place.Id));
         Assert.False(await verify.PlaceVisitCandidates.AnyAsync(c => c.Id == candidate.Id));
@@ -132,15 +163,24 @@ public sealed partial class PlaceConditionalPostgresTests
         var g = await RegionDeletionTestGraph.SeedAsync(fixture);
         await using var db = fixture.CreateContext(); await AddCredentialAsync(db, g.UserId);
         var place = await db.Places.Include(p => p.Region).SingleAsync(p => p.Id == g.PlaceIds[0]);
-        await using var app = await StartAsync(db, [new FailPlaceCommit(committed)]); using var web = await WebAsync(app, g.UserId);
+        var failure = new FailPlaceCommit(committed) { Armed = false };
+        await using var app = await StartAsync(db, [failure]); using var web = await WebAsync(app, g.UserId);
         var path = DeletionPath(place, true); var preview = await DeletionPreviewAsync(web, path);
         var before = await GraphStateAsync(g.TripId); var rows = await StoredStructureRowsAsync(g.TripId);
-        using var response = await web.PostAsJsonAsync(path + "/deletion", new { confirmationToken = preview.Confirmation.Token });
+        var route = path + "/deletion/receipt";
+        var body = JsonSerializer.Serialize(new { receiptContract = TripMetadataIdentity.StructureVersion, confirmationToken = preview.Confirmation.Token });
+        var permit = await TripMetadataReceiptHttp.IssueTypedAsync(web, PlaceDeletionIdentity(place), route, body);
+        failure.Armed = true;
+        using var response = await TripMetadataReceiptHttp.SendAsync(web, HttpMethod.Post, route, permit, body);
+        failure.Armed = false;
         Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
         await using var verify = fixture.CreateContext();
         Assert.Equal(!committed, await verify.Places.AnyAsync(p => p.Id == place.Id));
         if (!committed) { Assert.Equal(before, await GraphStateAsync(g.TripId)); Assert.Equal(rows, await StoredStructureRowsAsync(g.TripId)); }
         else Assert.Null((await verify.PlaceVisitEvents.SingleAsync(v => v.TripIdSnapshot == g.TripId)).PlaceId);
+        using var lookup = await TripMetadataReceiptHttp.SendAsync(web, HttpMethod.Get,
+            route + "/operations/" + permit.GetProperty("operationId").GetString(), permit, null);
+        await TripMetadataReceiptHttp.EvidenceAsync(lookup, permit, committed ? "applied" : "unobserved");
     }
 
     /// <summary>A real committed envelope can be lost in HTTP transport; graph absence supplies no deletion receipt.</summary>
@@ -176,6 +216,20 @@ public sealed partial class PlaceConditionalPostgresTests
         await using var verify = fixture.CreateContext();
         Assert.False(await verify.Places.AnyAsync(p => p.Id == place.Id));
     }
+
+    /// <summary>Exercises the current Web writer and the retained bearer confirmation route.</summary>
+    private static Task<HttpResponseMessage> DispatchPlaceDeletionAsync(HttpClient client, Place place, bool web, object payload)
+    {
+        var path = DeletionPath(place, web) + "/deletion";
+        if (!web) return client.PostAsJsonAsync(path, payload);
+        return TripMetadataReceiptHttp.DispatchTypedAsync(client, PlaceDeletionIdentity(place), HttpMethod.Post, path + "/receipt",
+            JsonSerializer.Serialize(payload, JsonSerializerOptions.Web));
+    }
+
+    /// <summary>Uses one typed identity for confirmed deletion, recovery and exact replay.</summary>
+    private static TripMetadataIdentity PlaceDeletionIdentity(Place place) =>
+        new(TripMetadataIdentity.StructureVersion, place.UserId, "web",
+            "place-delete", place.Region.TripId, "", Guid.Empty, default) { Target = new("place", place.Id) };
 
     private static string DeletionPath(Place p, bool web) => $"/api/trips/{p.Region.TripId}/{(web ? "editor" : "conditional")}/places/{p.Id}";
     private static async Task<PlaceDeletionPreviewDto> DeletionPreviewAsync(HttpClient client, string path)

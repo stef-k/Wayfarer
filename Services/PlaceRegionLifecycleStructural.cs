@@ -39,21 +39,16 @@ public sealed partial class PlaceRegionLifecycleService
         PlaceStructuralRequest request, IReadOnlySet<string> icons, IReadOnlySet<string> colors,
         Func<CancellationToken, Task<bool>>? revalidateBearer,
         Func<Place, Task<PlaceStructuralAddress>>? explicitAddress,
-        CancellationToken token)
+        CancellationToken token, Func<PlaceStructuralSnapshot, EditorMutationResult<object>, bool, Task>? capture = null)
     {
-        var candidates = await ReadPlaceStructureAsync(tripId, targetId, userId, request, token);
-        ValidatePlaceStructure(candidates, request, icons, colors);
-        if (!request.Reviewed || string.IsNullOrWhiteSpace(request.ConditionToken))
-            throw new TripMetadataMutationRejected(409, "mutation-review-required", "Keep your draft. Review the prepared dependency base before applying this operation.");
-        if (!_confirmation.MatchesPlaceStructure(request.ConditionToken, request.Operation, userId, tripId, targetId,
-            request.IntentFingerprint(), PlaceStructureFingerprint(candidates, request))) throw PlaceStructureStale();
+        var candidates = await ReviewPlaceStructureAsync(tripId, targetId, userId, request, icons, colors, token);
         var address = explicitAddress == null ? null : await explicitAddress(candidates.Place!);
         var tracker = LifecycleTrackerSnapshot.Capture(_dbContext);
         var scope = new LifecycleRecoveryScope(candidates.Locks.PlaceIds, candidates.Locks.RegionIds, candidates.Locks.SegmentIds);
         var isolated = false;
         var commitStarted = false;
         var committed = false;
-        await using var transaction = await BeginTransactionAsync(token, IsolationLevel.ReadCommitted);
+        await using var transaction = capture == null ? await BeginTransactionAsync(token, IsolationLevel.ReadCommitted) : null;
         try
         {
             await LockAsync(candidates.Locks, token);
@@ -71,13 +66,16 @@ public sealed partial class PlaceRegionLifecycleService
 
             foreach (var entry in _dbContext.ChangeTracker.Entries().ToArray()) entry.State = EntityState.Detached;
             isolated = true;
-            var result = await ApplyLockedPlaceStructureAsync(current, request, address, token);
+            var applied = true;
+            var result = await ApplyLockedPlaceStructureAsync(current, request, address, token,
+                capture == null ? null : changed => applied = changed);
+            if (capture != null) await capture(current, result, applied);
             commitStarted = true;
             if (transaction != null) await transaction.CommitAsync(token);
             committed = true;
             return result;
         }
-        catch (Exception original)
+        catch (Exception original) when (capture == null)
         {
             try { await RecoverUnappliedRegionDeletionAsync(original, transaction); }
             catch { isolated = false; throw; }
@@ -94,6 +92,19 @@ public sealed partial class PlaceRegionLifecycleService
                 RestoreTracker(scope, tracker);
             }
         }
+    }
+
+    /// <summary>Reuses the prepared private review before a provider claim and before acquiring the final write locks.</summary>
+    internal async Task<PlaceStructuralSnapshot> ReviewPlaceStructureAsync(Guid tripId, Guid targetId, string userId,
+        PlaceStructuralRequest request, IReadOnlySet<string> icons, IReadOnlySet<string> colors, CancellationToken token)
+    {
+        var snapshot = await ReadPlaceStructureAsync(tripId, targetId, userId, request, token);
+        ValidatePlaceStructure(snapshot, request, icons, colors);
+        if (!request.Reviewed || string.IsNullOrWhiteSpace(request.ConditionToken))
+            throw new TripMetadataMutationRejected(409, "mutation-review-required", "Keep your draft. Review the prepared dependency base before applying this operation.");
+        if (!_confirmation.MatchesPlaceStructure(request.ConditionToken, request.Operation, userId, tripId, targetId,
+            request.IntentFingerprint(), PlaceStructureFingerprint(snapshot, request))) throw PlaceStructureStale();
+        return snapshot;
     }
 
     /// <summary>Reuses scalar publication validation and preserves exact public originals through both prepare and final locks.</summary>

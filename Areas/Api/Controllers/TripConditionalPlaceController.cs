@@ -36,6 +36,7 @@ public sealed partial class TripEditorController
 {
     /// <summary>Cookie/User/antiforgery scalar edits; combined intent uses the prepared lifecycle PUT.</summary>
     [HttpPatch("places/{placeId:guid}/conditional")]
+    [RequireTripStructureDispatch(replaced: true)]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> PatchConditionalPlace(Guid tripId, Guid placeId, CancellationToken cancellationToken)
     {

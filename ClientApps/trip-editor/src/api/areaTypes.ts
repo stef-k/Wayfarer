@@ -7,6 +7,8 @@ export interface EditorAreaOriginalValues {
   notesHtml: string | null;
   fillHex: string | null;
   geometry: string;
+  /** The stored nullable sibling order, independent of presentation zero. */
+  displayOrder?: number | null;
 }
 
 /** Parent identity is comparison evidence, never a writable field; each dirty field supplies its own original. */

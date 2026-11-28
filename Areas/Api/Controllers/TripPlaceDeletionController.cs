@@ -36,6 +36,7 @@ public sealed partial class TripEditorController
 
     /// <summary>Cookie/User-role confirmed deletion shares the bearer lifecycle compare/apply owner.</summary>
     [HttpPost("places/{placeId:guid}/deletion")]
+    [RequireTripStructureDispatch(replaced: true)]
     [ValidateAntiForgeryToken]
     public Task<IActionResult> ConfirmPlaceDeletion(Guid tripId, Guid placeId, [FromServices] PlaceRegionLifecycleService lifecycle, CancellationToken token) =>
         PlaceDeletionAsync(tripId, placeId, lifecycle, true, token);

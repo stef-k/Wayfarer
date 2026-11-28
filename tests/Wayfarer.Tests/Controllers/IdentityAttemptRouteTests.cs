@@ -72,6 +72,7 @@ public sealed class IdentityAttemptRouteTests : TestBase
         {
             ["/Account/Login"] = typeof(LoginModel),
             ["/Account/Register"] = typeof(RegisterModel),
+            ["/Account/Manage/DeletePersonalData"] = typeof(Wayfarer.Areas.Identity.Pages.Account.Manage.DeletePersonalDataModel),
             ["/Account/Manage/Index"] = typeof(Wayfarer.Areas.Identity.Pages.Account.Manage.IndexModel),
             ["/Account/Manage/EnableAuthenticator"] = typeof(Wayfarer.Areas.Identity.Pages.Account.Manage.EnableAuthenticatorModel)
         };

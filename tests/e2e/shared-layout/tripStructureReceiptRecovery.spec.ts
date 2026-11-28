@@ -1,0 +1,235 @@
+import { expect, test, type Page } from '@playwright/test';
+import { loadSharedLayoutConfig } from './sharedLayoutConfig';
+
+/** Observes actual committed browser custody before allowing the lost response or subsequent reload. */
+async function regionCustody(page: Page, tripId: string, id: string) {
+  return page.evaluate(({ tripId, id }) => new Promise<{
+    name: string | null; originals: Record<string, unknown> | null; generation: number; attempts: number;
+  }>((resolve, reject) => {
+    const open = indexedDB.open('wayfarer-trip-metadata', 3);
+    open.onerror = () => reject(open.error);
+    open.onsuccess = () => {
+      const db = open.result;
+      const account = document.querySelector<HTMLElement>('#trip-editor-app')?.dataset.accountId;
+      const read = db.transaction('drafts').objectStore('drafts').get([account!, tripId]);
+      read.onerror = () => { db.close(); reject(read.error); };
+      read.onsuccess = () => {
+        const structure = read.result?.structure;
+        const key = JSON.stringify(['region-fields', 'region', id]);
+        const draft = structure?.drafts[key];
+        resolve({ name: draft?.payload.changes.name ?? null, originals: draft?.payload.expected ?? null,
+          generation: draft?.generation ?? 0, attempts: structure?.attempts.length ?? 0 });
+        db.close();
+      };
+    };
+  }), { tripId, id });
+}
+
+test('typed Region recovery after reload keeps the newer draft and sends zero recovery writes', async ({ page, context }, info) => {
+  test.setTimeout(75_000);
+  const config = loadSharedLayoutConfig();
+  const tripId = process.env.WAYFARER_E2E_TRIP_ID!;
+  const endpoint = `/api/trips/${tripId}/editor`;
+  await context.route('**/tiles/**', route => route.abort());
+  await page.goto('/Identity/Account/Login');
+  await page.getByLabel('Username').fill(config.username);
+  await page.getByLabel('Password').fill(config.password);
+  await Promise.all([page.waitForURL(url => !url.pathname.endsWith('/Account/Login')),
+    page.getByRole('button', { name: 'Log in' }).click()]);
+  const editor = `/User/Trip/Edit/${tripId}`;
+  await page.goto(editor);
+  await expect(page.locator('.trip-editor-region-card--normal').first()).toBeVisible();
+
+  const card = page.locator('.trip-editor-region-card--normal').first();
+  const id = (await card.getAttribute('data-region-id'))!;
+  const routePath = `${endpoint}/regions/${id}/conditional/receipt`;
+  await card.locator('.trip-editor-region-card__header').getByRole('button', { name: 'Edit', exact: true }).click();
+  const name = page.locator('#trip-editor-region-form').getByLabel('Name', { exact: true });
+  await name.fill('Submitted Region B');
+  await expect.poll(async () => (await regionCustody(page, tripId, id)).name).toBe('Submitted Region B');
+
+  const committed = Promise.withResolvers<void>();
+  const drop = Promise.withResolvers<void>();
+  const writes: string[] = [];
+  context.on('request', request => {
+    if (new URL(request.url()).pathname.startsWith(endpoint) && !['GET', 'HEAD'].includes(request.method()))
+      writes.push(request.method());
+  });
+  await page.route(`**${routePath}`, async route => {
+    const reply = await route.fetch();
+    expect(reply.status(), await reply.text()).toBe(200);
+    expect((await reply.json()).state).toBe('applied');
+    committed.resolve();
+    await drop.promise;
+    await route.abort();
+  }, { times: 1 });
+  await page.getByRole('button', { name: 'Save Region', exact: true }).click();
+  await committed.promise;
+  const submitted = await regionCustody(page, tripId, id);
+  expect(submitted.attempts).toBe(1);
+  await name.fill('Newer Region C');
+  await expect.poll(async () => (await regionCustody(page, tripId, id)).generation).toBeGreaterThan(submitted.generation);
+  drop.resolve();
+
+  await page.reload();
+  const recovery = page.locator('[data-structure-recovery]');
+  await expect(recovery.getByRole('button', { name: 'Check server', exact: true })).toBeVisible();
+  const operations = page.waitForResponse(response => response.request().method() === 'GET' && response.url().includes(routePath + '/operations/'));
+  await recovery.getByRole('button', { name: 'Check server', exact: true }).click();
+  expect((await operations).status()).toBe(200);
+  await expect(recovery.getByText('The earlier Trip save was confirmed.', { exact: false })).toBeVisible();
+  await expect.poll(() => regionCustody(page, tripId, id)).toMatchObject({ name: 'Newer Region C', attempts: 0 });
+  await recovery.locator('summary').click();
+  await expect(recovery.locator('pre')).toContainText('Newer Region C');
+  expect(writes).toEqual(['POST', 'PATCH']);
+  await page.screenshot({ path: process.env.WAYFARER_STRUCTURE_SCREENSHOT ?? info.outputPath('typed-region-recovery.png'), fullPage: true });
+});
+
+/** Reviews the retained generation and explicitly frees its slot through the recovery UI. */
+async function reviewAndDiscardRegionDraft(page: Page, desired: string): Promise<void> {
+  const recovery = page.getByRole('region', { name: 'Trip save recovery' });
+  await recovery.getByRole('button', { name: 'Check server', exact: true }).click();
+  await recovery.getByText('Retained draft', { exact: false }).click();
+  await expect(recovery.locator('pre')).toContainText(desired);
+  await recovery.getByRole('button', { name: 'Discard local draft', exact: true }).click();
+}
+
+test('a stale open Region form leaves the newer durable draft and saved Region untouched', async ({ page, context }) => {
+  const config = loadSharedLayoutConfig();
+  const tripId = process.env.WAYFARER_E2E_TRIP_ID!;
+  const editor = `/User/Trip/Edit/${tripId}`;
+  const endpoint = `/api/trips/${tripId}/editor`;
+  await context.route('**/tiles/**', route => route.abort());
+  await page.goto('/Identity/Account/Login');
+  await page.getByLabel('Username').fill(config.username);
+  await page.getByLabel('Password').fill(config.password);
+  await Promise.all([page.waitForURL(url => !url.pathname.endsWith('/Account/Login')),
+    page.getByRole('button', { name: 'Log in' }).click()]);
+  const other = await context.newPage();
+  await Promise.all([page.goto(editor), other.goto(editor)]);
+  const card = (actor: Page) => actor.locator('.trip-editor-region-card--normal').first();
+  await expect(card(page)).toBeVisible();
+  const id = (await card(page).getAttribute('data-region-id'))!;
+  const name = (actor: Page) => actor.locator('#trip-editor-region-form').getByLabel('Name', { exact: true });
+  for (const actor of [page, other])
+    await card(actor).locator('.trip-editor-region-card__header').getByRole('button', { name: 'Edit', exact: true }).click();
+  const readSaved = async () => {
+    const response = await page.request.get(endpoint);
+    expect(response.ok()).toBe(true);
+    return (await response.json()).regionsById[id];
+  };
+  const saved = await readSaved();
+  const routePath = `${endpoint}/regions/${id}/conditional/receipt`;
+  const sends: string[] = [];
+  context.on('request', request => {
+    if ([routePath, routePath + '/operations'].includes(new URL(request.url()).pathname)) sends.push(request.method());
+  });
+  await name(page).fill('Older draft A');
+  await expect.poll(() => regionCustody(page, tripId, id)).toMatchObject({ name: 'Older draft A' });
+  const first = await regionCustody(page, tripId, id);
+
+  // An untouched form cannot start its own draft while this slot is occupied.
+  await name(other).fill('Occupied slot edit');
+  const save = (actor: Page) => actor.getByRole('button', { name: 'Save Region', exact: true });
+  const stale = (actor: Page) => actor.getByRole('alert').filter({ hasText: 'This draft is out of date.' });
+  await save(other).click();
+  await expect(save(other)).toBeEnabled();
+  await expect(stale(other)).toBeVisible();
+  await expect(name(other)).toHaveValue('Occupied slot edit');
+  expect(await regionCustody(page, tripId, id)).toEqual(first);
+  expect(sends).toEqual([]);
+
+  await reviewAndDiscardRegionDraft(other, 'Older draft A');
+  await expect.poll(() => regionCustody(page, tripId, id)).toMatchObject({ name: null });
+  await other.reload();
+  await card(other).locator('.trip-editor-region-card__header').getByRole('button', { name: 'Edit', exact: true }).click();
+  await name(other).fill('Newer draft B');
+  await expect.poll(() => regionCustody(page, tripId, id)).toMatchObject({
+    name: 'Newer draft B', originals: { name: saved.name }, attempts: 0
+  });
+  const newer = await regionCustody(page, tripId, id);
+  expect(newer.generation).toBeGreaterThan(first.generation);
+
+  await name(page).fill('Older draft A edited again');
+  await save(page).click();
+  await expect(save(page)).toBeEnabled();
+  await expect(stale(page)).toContainText('Review the retained draft in Trip save recovery');
+  const recovery = page.getByRole('region', { name: 'Trip save recovery' });
+  await recovery.getByText('Retained draft', { exact: false }).click();
+  await expect(recovery.locator('pre')).toContainText('Newer draft B');
+  await expect(name(page)).toHaveValue('Older draft A edited again');
+  await expect(name(other)).toHaveValue('Newer draft B');
+  expect(await readSaved()).toEqual(saved);
+  expect(await regionCustody(page, tripId, id)).toEqual(newer);
+  expect(sends).toEqual([]);
+
+  // Flush two input events through Vue before IndexedDB can commit either of their transactions.
+  await name(other).evaluate((input: HTMLInputElement) => {
+    input.value = 'Queued edit B';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    return Promise.resolve().then(() => {
+      input.value = 'Current edit B';
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+  });
+  await expect.poll(() => regionCustody(page, tripId, id)).toMatchObject({
+    name: 'Current edit B', originals: newer.originals, generation: newer.generation + 2
+  });
+  await save(other).click();
+  await expect.poll(async () => (await readSaved()).name).toBe('Current edit B');
+  await expect.poll(() => regionCustody(page, tripId, id)).toMatchObject({ name: null, attempts: 0 });
+  expect(sends).toEqual(['POST', 'PATCH']);
+});
+
+test('a newer tab generation during typed permit issuance prevents dispatch', async ({ page, context }) => {
+  const config = loadSharedLayoutConfig();
+  const tripId = process.env.WAYFARER_E2E_TRIP_ID!;
+  const editor = `/User/Trip/Edit/${tripId}`;
+  const endpoint = `/api/trips/${tripId}/editor`;
+  await context.route('**/tiles/**', route => route.abort());
+  await page.goto('/Identity/Account/Login');
+  await page.getByLabel('Username').fill(config.username);
+  await page.getByLabel('Password').fill(config.password);
+  await Promise.all([page.waitForURL(url => !url.pathname.endsWith('/Account/Login')),
+    page.getByRole('button', { name: 'Log in' }).click()]);
+  const other = await context.newPage();
+  await Promise.all([page.goto(editor), other.goto(editor)]);
+  const card = (actor: Page) => actor.locator('.trip-editor-region-card--normal').first();
+  await expect(card(page)).toBeVisible();
+  const id = (await card(page).getAttribute('data-region-id'))!;
+  const regionName = (actor: Page) => actor.locator('#trip-editor-region-form').getByLabel('Name', { exact: true });
+  for (const actor of [page, other])
+    await card(actor).locator('.trip-editor-region-card__header').getByRole('button', { name: 'Edit', exact: true }).click();
+
+  const routePath = `${endpoint}/regions/${id}/conditional/receipt`;
+  const minted = Promise.withResolvers<void>();
+  const release = Promise.withResolvers<void>();
+  const sends: string[] = [];
+  context.on('request', request => {
+    if (new URL(request.url()).pathname === routePath) sends.push(request.method());
+  });
+  await page.route(`**${routePath}/operations`, async route => {
+    const reply = await route.fetch();
+    expect(reply.status()).toBe(200);
+    minted.resolve();
+    await release.promise;
+    await route.fulfill({ response: reply });
+  }, { times: 1 });
+  await regionName(page).fill('First tab submitted draft');
+  await expect.poll(async () => (await regionCustody(page, tripId, id)).name).toBe('First tab submitted draft');
+  await page.getByRole('button', { name: 'Save Region', exact: true }).click();
+  try {
+    await minted.promise;
+    const starting = await regionCustody(page, tripId, id);
+    await other.reload();
+    await reviewAndDiscardRegionDraft(other, 'First tab submitted draft');
+    await expect.poll(() => regionCustody(page, tripId, id)).toMatchObject({ name: null });
+    await card(other).locator('.trip-editor-region-card__header').getByRole('button', { name: 'Edit', exact: true }).click();
+    await regionName(other).fill('Second tab newer draft');
+    await expect.poll(async () => (await regionCustody(page, tripId, id)).generation).toBeGreaterThan(starting.generation);
+  } finally { release.resolve(); }
+
+  await expect(page.getByRole('button', { name: 'Save Region', exact: true })).toBeEnabled();
+  expect(sends).toEqual([]);
+  expect(await regionCustody(page, tripId, id)).toMatchObject({ name: 'Second tab newer draft', attempts: 0 });
+});

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace Wayfarer.Models.Dtos.Editor;
 
@@ -17,7 +18,16 @@ public sealed record RegionDeletionConsequencesDto(
     EditorLifecycleDependencySampleDto MovedPlaces, EditorLifecycleDependencySampleDto DeletedPlaces,
     EditorLifecycleDependencySampleDto MovedAreas, EditorLifecycleDependencySampleDto DeletedAreas,
     EditorLifecycleDependencySampleDto DeletedSegments, EditorLifecycleDependencySampleDto UpdatedSegments,
-    EditorLifecycleAssociationSampleDto DetachedWaypoints);
+    EditorLifecycleAssociationSampleDto DetachedWaypoints)
+{
+    /// <summary>Actual linked events included in version-two destructive consent.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? UnlinkedVisits { get; init; }
+
+    /// <summary>Actual linked candidates included in version-two destructive consent.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? DeletedCandidates { get; init; }
+}
 
 /// <summary>Discloses source metadata loss without copying raw HTML into the dialog.</summary>
 public sealed record RegionDeletionMetadataLossDto(bool HasNotes, bool HasCover, bool HasCenter, bool HasPlanning = false);
@@ -29,7 +39,12 @@ public sealed record RegionDeletionConfirmationDto(string Token, DateTimeOffset 
 public sealed record RegionDeletionPreviewDto(
     int ContractVersion, Guid TripId, Guid SourceRegionId, string SourceRegionName, string Places, string Areas,
     RegionDeletionDestinationDto Destination, RegionDeletionConsequencesDto Consequences,
-    RegionDeletionMetadataLossDto RegionMetadataLoss, RegionDeletionConfirmationDto Confirmation);
+    RegionDeletionMetadataLossDto RegionMetadataLoss, RegionDeletionConfirmationDto Confirmation)
+{
+    /// <summary>Presence identifies the adapter-bound preview required by typed receipts.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Contract { get; init; }
+}
 
 /// <summary>Complete committed identities; editor slices are supplied separately in the standard envelope.</summary>
 public sealed record RegionDeletionResultDto(

@@ -14,6 +14,10 @@ const bundle = await build({ stdin: { contents: `export { default as Review } fr
       return { contents: compileScript(descriptor, { id: args.path }).content, loader: 'ts' };
     });
     builder.onLoad({ filter: /\.css$/ }, () => ({ contents: '', loader: 'js' }));
+    // This component fixture owns Planning acknowledgement and draft behavior. Authenticated browser and routed tests own transport.
+    builder.onLoad({ filter: /dependentDispatch\.ts$/ }, () => ({ contents:
+      'export const dependentRefusal = () => false; export const dependentSegmentSuccess = (_response, result) => result.success === true && !!result.affected && !!result.deletedIds && Object.hasOwn(result, "data") && Array.isArray(result.warnings); export const sendDependent = async (_, url, init) => ({ response: await fetch(url, init), complete: async () => {} });'
+    }));
     builder.onLoad({ filter: /useConfirmDialog\.ts$/ }, () => ({ contents: 'export const confirm = async () => true;' }));
   } }] });
 const code = bundle.outputFiles[0].text.replaceAll('from "vue"', `from "${import.meta.resolve('vue')}"`);

@@ -33,8 +33,8 @@ public sealed partial class RegionConditionalPostgresTests
         await using var db = fixture.CreateContext();
         await using var app = await StartAsync(db, [probe]);
         using var client = webRoute ? await WebAsync(app, region.UserId) : Bearer(app, region.UserId);
-        using var response = await client.PatchAsync(webRoute ? $"/api/trips/{region.TripId}/editor/regions/{region.Id}/conditional"
-            : $"/api/trips/{region.TripId}/conditional/regions/{region.Id}", new StringContent(json, Encoding.UTF8, "application/json"));
+        using var response = webRoute ? await DispatchRegionFieldsAsync(client, region, json)
+            : await client.PatchAsync($"/api/trips/{region.TripId}/conditional/regions/{region.Id}", new StringContent(json, Encoding.UTF8, "application/json"));
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Contains("mutation-request-invalid", await response.Content.ReadAsStringAsync());
         Assert.Empty(probe.Updates);

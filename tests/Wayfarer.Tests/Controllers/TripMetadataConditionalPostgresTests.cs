@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -268,14 +269,21 @@ public sealed partial class TripMetadataConditionalPostgresTests(PostgresImportT
     }
 
     /// <summary>Registers per-request contexts while keeping production routing and authority intact.</summary>
-    private Task<WebApplication> StartAsync(ApplicationDbContext db, IInterceptor[]? interceptors = null, Action<WebApplication>? middleware = null) =>
-        IdentityRouteHost.StartAsync(db, CreateTestDirectory(), services =>
+    private Task<WebApplication> StartAsync(ApplicationDbContext db, IInterceptor[]? interceptors = null,
+        Action<WebApplication>? middleware = null, Action<IServiceCollection>? servicesOverride = null)
+    {
+        var webRoot = CreateTestDirectory();
+        return IdentityRouteHost.StartAsync(db, webRoot, services =>
         {
+            services.AddSingleton<IWebHostEnvironment>(Mock.Of<IWebHostEnvironment>(environment => environment.WebRootPath == webRoot));
             services.AddScoped(_ => fixture.CreateContext(interceptors ?? []));
+            services.AddSingleton<IDbContextFactory<ApplicationDbContext>>(new ManagedImportTestScope.Contexts(fixture));
             services.AddSingleton(_warmup.Object);
             services.AddSingleton(_thumbnails.Object);
             services.AddSingleton(Mock.Of<ITripEditorGeocodeSearchService>());
+            servicesOverride?.Invoke(services);
         }, middleware);
+    }
 
     /// <summary>Uses a genuine User cookie and its matching antiforgery token.</summary>
     private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<HttpClient, string> WebSubjects = new();

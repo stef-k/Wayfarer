@@ -12,13 +12,15 @@ internal sealed class PlaceConditionalMutationService(ApplicationDbContext db, I
 {
     /// <summary>Locks child before parents, compares fresh scope/originals and commits only intended columns plus Trip freshness.</summary>
     internal async Task<PlaceConditionalResult> ApplyAsync(Guid tripId, Guid placeId, string userId, Stream body, bool web,
-        Func<CancellationToken, Task<bool>>? revalidateBearer, CancellationToken token)
+        Func<CancellationToken, Task<bool>>? revalidateBearer, CancellationToken token, bool protectedWrite = false)
     {
         if (!await db.Places.AsNoTracking().AnyAsync(a => a.Id == placeId && a.Region.TripId == tripId
                 && a.UserId == userId && a.Region.UserId == userId && a.Region.Trip.UserId == userId, token)) throw Unavailable();
         var request = await PlaceConditionalRequest.ReadAsync(body, web, IconNames(),
-            (colors.GetAvailableColors()?.Backgrounds ?? []).ToHashSet(StringComparer.Ordinal), token);
-        await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, token);
+            (colors.GetAvailableColors()?.Backgrounds ?? []).ToHashSet(StringComparer.Ordinal), token, protectedWrite);
+        // Protected callers already hold the account/operation fence in their outer transaction.
+        await using var transaction = protectedWrite ? null
+            : await db.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, token);
         var commitStarted = false;
         try
         {
@@ -39,22 +41,25 @@ internal sealed class PlaceConditionalMutationService(ApplicationDbContext db, I
                 throw new TripMetadataMutationRejected(401, "mutation-authority-unavailable", "Authentication is no longer valid.");
             if (region.TripId != tripId || place.RegionId != request.RegionId)
                 throw new TripMetadataMutationRejected(409, "mutation-scope-stale", "The Place parent changed. Keep your draft and review its current Region.");
-            if (request.Expected.Any(field => !Equals(field.Value, Current(place, field.Key))))
+            if (request.Expected.Any(field => !Equals(field.Value, Current(place, field.Key)))
+                || request.AddressOriginal != null && request.AddressOriginal != PlaceAddressOriginal.From(place))
                 throw new TripMetadataMutationRejected(409, "mutation-base-stale",
                     "The edited Place fields changed. Keep your draft, review current values and explicitly choose a new base before saving.");
+            var addressCleared = request.Changes.TryGetValue("address", out var address)
+                && !PlaceRegionLifecycleService.CompatibleAddress(place.Address, address);
             var applied = request.Changes.Any(field => !Equals(field.Value, field.Key == "notes" ? place.Notes : Current(place, field.Key)));
             if (applied)
             {
-                await WriteAsync(place, request, token);
+                await WriteAsync(place, request, addressCleared, token);
                 var now = DateTime.UtcNow;
                 await db.Trips.Where(t => t.Id == tripId && t.UserId == userId)
                     .ExecuteUpdateAsync(s => s.SetProperty(t => t.UpdatedAt, t => t.UpdatedAt > now ? t.UpdatedAt : now), token);
             }
             commitStarted = true;
-            await transaction.CommitAsync(token);
-            return new(place, applied);
+            if (transaction != null) await transaction.CommitAsync(token);
+            return new(place, applied, addressCleared);
         }
-        catch (Exception original)
+        catch (Exception original) when (transaction != null)
         {
             try { await transaction.RollbackAsync(CancellationToken.None); }
             catch (Exception rollback) { throw new AggregateException("Place edit failed and rollback also failed.", original, rollback); }
@@ -67,11 +72,11 @@ internal sealed class PlaceConditionalMutationService(ApplicationDbContext db, I
     /// <summary>Original Notes use the shared publication canonicalization, preserving null separately from empty.</summary>
     internal static object? Current(Place place, string key) => key switch
     {
-        "name" => place.Name, "notes" => RichNotes.Normalize(place.Notes), "iconName" => place.IconName, "markerColor" => place.MarkerColor, _ => throw new InvalidOperationException("Unsupported Place field.")
+        "name" => place.Name, "notes" => RichNotes.Normalize(place.Notes), "iconName" => place.IconName, "markerColor" => place.MarkerColor, "address" => place.Address, _ => throw new InvalidOperationException("Unsupported Place field.")
     };
 
     /// <summary>Uses explicit property setters without attaching stale entities or saving unrelated tracked work.</summary>
-    private async Task WriteAsync(Place place, PlaceConditionalRequest request, CancellationToken token)
+    private async Task WriteAsync(Place place, PlaceConditionalRequest request, bool addressCleared, CancellationToken token)
     {
         await db.Places.Where(a => a.Id == place.Id && a.RegionId == place.RegionId).ExecuteUpdateAsync(setters =>
         {
@@ -95,7 +100,19 @@ internal sealed class PlaceConditionalMutationService(ApplicationDbContext db, I
                         place.MarkerColor = value;
                         setters.SetProperty(a => a.MarkerColor, place.MarkerColor);
                         break;
+                    case "address":
+                        place.Address = value;
+                        setters.SetProperty(a => a.Address, place.Address);
+                        break;
                 }
+            }
+            if (addressCleared)
+            {
+                setters.SetProperty(a => a.ResolvedFeatureName, (string?)null)
+                    .SetProperty(a => a.ResolvedFeatureType, (string?)null)
+                    .SetProperty(a => a.AddressEnrichmentProvider, (string?)null)
+                    .SetProperty(a => a.AddressEnrichmentStorageMode, (string?)null)
+                    .SetProperty(a => a.AddressEnrichedAt, (DateTimeOffset?)null);
             }
         }, token);
     }
@@ -113,4 +130,4 @@ internal sealed class PlaceConditionalMutationService(ApplicationDbContext db, I
 }
 
 /// <summary>Returned only after commit; does not imply delivery of the HTTP reply or provide an idempotency receipt.</summary>
-internal sealed record PlaceConditionalResult(Place Place, bool Applied);
+internal sealed record PlaceConditionalResult(Place Place, bool Applied, bool AddressCleared);

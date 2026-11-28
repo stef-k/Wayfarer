@@ -167,7 +167,8 @@ public static class EditorTripStateMapper
         };
     }
 
-    private static LineString? BuildEffectiveRoute(Segment segment)
+    /// <summary>Builds the effective fallback from the current endpoint and waypoint positions.</summary>
+    internal static LineString? BuildEffectiveRoute(Segment segment)
     {
         var coordinates = new List<Coordinate>();
         if (segment.FromPlace?.Location is Point from) coordinates.Add(from.Coordinate);
@@ -225,6 +226,9 @@ public static class EditorTripStateMapper
             Planning = area.Planning,
             PlanningDiagnostics = Wayfarer.Models.Planning.PlanningValidation.Diagnostics(area.Planning, "area"),
             OriginalValues = new(regionId, area.Name, RichNotes.Normalize(area.Notes), area.FillHex, AreaGeometryIdentity.For(area.Geometry))
+            {
+                DisplayOrder = area.DisplayOrder
+            }
         };
 
     private static EditorVisitProgressDto BuildVisitProgress(

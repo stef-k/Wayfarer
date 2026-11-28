@@ -14,7 +14,7 @@ namespace Wayfarer.Services;
 /// <summary>
 /// Executes Trip Editor place mutations and builds their mutation result envelopes.
 /// </summary>
-public sealed class TripEditorPlaceMutationService
+public sealed partial class TripEditorPlaceMutationService
 {
     private readonly ApplicationDbContext _dbContext;
     private readonly IWebHostEnvironment _environment;
@@ -202,15 +202,18 @@ public sealed class TripEditorPlaceMutationService
         string? manualAddress,
         EditorCoordinateDto? location,
         bool reverseGeocode,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, Func<CancellationToken, Task>? checkMeteredAuthority = null)
     {
         var fallback = manualAddress?.Trim() ?? string.Empty;
         if (!reverseGeocode || location == null)
         {
             return (fallback, Array.Empty<EditorWarningDto>(), null);
         }
-        var result = await _reverseGeocodingService.EnrichAsync(userId, location.Latitude, location.Longitude,
-            ReverseGeocodingIntent.PlaceAddress, cancellationToken);
+        var result = checkMeteredAuthority == null
+            ? await _reverseGeocodingService.EnrichAsync(userId, location.Latitude, location.Longitude,
+                ReverseGeocodingIntent.PlaceAddress, cancellationToken)
+            : await _reverseGeocodingService.EnrichProtectedPlaceAsync(_dbContext, userId, location.Latitude, location.Longitude,
+                checkMeteredAuthority, cancellationToken);
         var address = result.Value == null ? null
             : string.IsNullOrWhiteSpace(result.Value.FullAddress) ? result.Value.Address : result.Value.FullAddress;
         if (string.IsNullOrWhiteSpace(address)) return (fallback, ReverseGeocodeWarning(placeId), null);

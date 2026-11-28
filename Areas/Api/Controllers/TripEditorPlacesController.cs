@@ -10,6 +10,7 @@ public sealed partial class TripEditorController
     /// Updates or moves a place inside an owned trip.
     /// </summary>
     [HttpPut("places/{placeId:guid}")]
+    [RequireTripStructureDispatch(replaced: true)]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> UpdatePlace(Guid tripId, Guid placeId, CancellationToken cancellationToken)
     {
@@ -45,6 +46,7 @@ public sealed partial class TripEditorController
     /// Persists the complete desired place order for one normal owned region.
     /// </summary>
     [HttpPut("regions/{regionId:guid}/places/order")]
+    [RequireTripStructureDispatch(replaced: true)]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> OrderPlaces(Guid tripId, Guid regionId, CancellationToken cancellationToken)
     {

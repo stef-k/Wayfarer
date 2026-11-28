@@ -340,6 +340,21 @@ forward-only. Preserve the candidate and receipts; do not manually repoint volum
 For complete-host loss, use the clean-host/new-install procedure in the
 [reference](wayfarerctl.md#clean-host-disaster-recovery).
 
+## Region, Place and Area receipt upgrade
+
+Quiesce and drain Region, Place and Area writes, including metered Place
+resolution, and dependent Editor Planning and Segment writes before deploying.
+Apply the current application migrations and resume writes after every
+writable node serves `trip-region-place-area-receipt-1` and enforces Editor
+dispatch version 3. Reload existing Editor pages after the cutover.
+
+Keep the existing Data Protection ring and database authority. Clients
+recover pending work using the version and route frozen before dispatch.
+The claim migration adds an expiring executor record for protected Place
+geocoding. Account deletion removes its records through the account cascade.
+A lost browser or provider reply can leave a held operation. Use the Editor
+or My Trips to check history and current owner state before repeating an edit.
+
 ## When a protected operation is unresolved
 
 Update, restore, setup and backup configuration record durable ownership before

@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Add durable Region, Place and Area edit receipts, Web draft recovery, and shared account-deletion ordering for protected Place geocoding (#1019).
+
 - Recover mixed Trip metadata, tags and progress sharing through the Editor,
   Viewer and My Trips. Owner bearer clients can replace tags and set or reset
   the saved map view with receipts. Upgrade with all Trip writers and catalogue

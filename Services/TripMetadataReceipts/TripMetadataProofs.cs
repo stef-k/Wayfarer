@@ -37,6 +37,7 @@ internal sealed class TripMetadataProofs(IDataProtectionProvider provider, IKeyM
             {
                 return Unprotect(bytes, authority, TripMetadataIdentity.Version)
                     ?? Unprotect(bytes, authority, TripMetadataIdentity.Version2)
+                    ?? Unprotect(bytes, authority, TripMetadataIdentity.StructureVersion)
                     ?? throw new CryptographicException("Trip permit version mismatch.");
             }
         }
@@ -66,8 +67,13 @@ internal sealed class TripMetadataProofs(IDataProtectionProvider provider, IKeyM
 
     /// <summary>Separates Trip permit formats and continuous database authorities from other protectors.</summary>
     private IDataProtector Protector(Guid authority, string contract) =>
-        provider.CreateProtector(contract == TripMetadataIdentity.Version ? "Wayfarer.TripMetadata.Permit.v1"
-            : "Wayfarer.TripMetadata.Permit.v2", authority.ToString("D"));
+        provider.CreateProtector(contract switch
+        {
+            TripMetadataIdentity.Version => "Wayfarer.TripMetadata.Permit.v1",
+            TripMetadataIdentity.Version2 => "Wayfarer.TripMetadata.Permit.v2",
+            TripMetadataIdentity.StructureVersion => "Wayfarer.TripStructure.Permit.v1",
+            _ => throw new CryptographicException("Trip permit version mismatch.")
+        }, authority.ToString("D"));
 
     /// <summary>Storage or key-ring failures carry no historical result.</summary>
     private static bool IsKeyFailure(Exception error) =>

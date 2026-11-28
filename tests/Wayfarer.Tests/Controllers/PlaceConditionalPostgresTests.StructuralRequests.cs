@@ -25,7 +25,7 @@ public sealed partial class PlaceConditionalPostgresTests
         await PrepareStructureAsync(web, place, true, "coordinates", request);
         await db.Places.Where(p => p.Id == place.Id).ExecuteUpdateAsync(s => s.SetProperty(p => p.Name, "Intervening name"));
         request["expected"] = new { regionId = place.RegionId, location = Coordinate(place), name = "Intervening name" };
-        using var response = await web.PutAsJsonAsync(StructurePath(place, true, "coordinates"), request);
+        using var response = await DispatchPlaceStructureAsync(web, place, true, "coordinates", request);
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
         await using var verify = fixture.CreateContext(); var stored = await verify.Places.SingleAsync(p => p.Id == place.Id);
         Assert.Equal(("Intervening name", place.Location!.AsText()), (stored.Name, stored.Location!.AsText()));
@@ -57,7 +57,7 @@ public sealed partial class PlaceConditionalPostgresTests
         if (mutation == "content") await db.Places.Where(p => p.Id == places[0].Id).ExecuteUpdateAsync(s => s.SetProperty(p => p.Notes, "Changed content"));
         if (mutation == "order") await db.Places.Where(p => p.Id == places[0].Id).ExecuteUpdateAsync(s => s.SetProperty(p => p.DisplayOrder, 88));
         var current = await db.Places.AsNoTracking().Where(p => p.RegionId == graph.SourceId).OrderBy(p => p.Id).Select(p => new { p.Id, p.DisplayOrder, p.Notes }).ToArrayAsync();
-        using var result = await client.PutAsJsonAsync(path, request);
+        using var result = await DispatchPlaceOrderAsync(client, graph.UserId, graph.TripId, graph.SourceId, web, request);
         Assert.Equal(mutation is "content" or "order" ? HttpStatusCode.Conflict : HttpStatusCode.BadRequest, result.StatusCode);
         await using var verify = fixture.CreateContext();
         Assert.Equal(JsonSerializer.Serialize(current), JsonSerializer.Serialize(await verify.Places.Where(p => p.RegionId == graph.SourceId).OrderBy(p => p.Id).Select(p => new { p.Id, p.DisplayOrder, p.Notes }).ToArrayAsync()));
@@ -156,7 +156,7 @@ public sealed partial class PlaceConditionalPostgresTests
         };
         var path = StructurePath(own, true, "coordinates");
         using var prepare = await web.PostAsJsonAsync(path + "/prepare", request);
-        using var apply = await web.PutAsJsonAsync(path, request);
+        using var apply = await DispatchPlaceStructureAsync(web, own, true, "coordinates", request);
         foreach (var response in new[] { prepare, apply })
         {
             Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
@@ -196,7 +196,7 @@ public sealed partial class PlaceConditionalPostgresTests
             .Append(scope == "foreign-member" ? foreign.Id : graph.OutsidePlaceId).ToArray();
         var path = StructurePath(place, true, "move");
         using var prepare = await web.PostAsJsonAsync(path + "/prepare", request);
-        using var apply = await web.PutAsJsonAsync(path, request);
+        using var apply = await DispatchPlaceStructureAsync(web, place, true, "move", request);
         foreach (var response in new[] { prepare, apply })
         {
             Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
@@ -253,13 +253,22 @@ public sealed partial class PlaceConditionalPostgresTests
         Assert.Equal(before, await StoredStructureRowsAsync(place.Region.TripId));
         request["conditionToken"] = preview.GetProperty("conditionToken").GetString();
         request["reviewed"] = true;
-        using var apply = operation == "coordinates" ? await client.PostAsJsonAsync(path, request) : await client.PutAsJsonAsync(path, request);
+        using var apply = operation switch
+        {
+            "order" => await client.PutAsJsonAsync(path, request),
+            _ => await DispatchPlaceStructureAsync(client, place, operation == "address", "coordinates", request)
+        };
         Assert.True(apply.StatusCode == HttpStatusCode.OK, await apply.Content.ReadAsStringAsync());
         var result = await apply.Content.ReadFromJsonAsync<JsonElement>();
-        var affected = Assert.Single(result.GetProperty("affected").GetProperty("places").EnumerateArray());
-        Assert.Equal(operation == "coordinates" ? JsonValueKind.Object : JsonValueKind.Null, affected.GetProperty("location").ValueKind);
-        if (operation != "order") Assert.True(JsonElement.DeepEquals(affected, result.GetProperty("data")));
-        else Assert.Equal(place.Id, Assert.Single(result.GetProperty("affected").GetProperty("placeOrdersByRegionId").GetProperty(place.RegionId.ToString()).EnumerateArray()).GetGuid());
+        if (operation == "address")
+            Assert.Equal("applied", result.GetProperty("state").GetString());
+        else
+        {
+            var affected = Assert.Single(result.GetProperty("affected").GetProperty("places").EnumerateArray());
+            Assert.Equal(operation == "coordinates" ? JsonValueKind.Object : JsonValueKind.Null, affected.GetProperty("location").ValueKind);
+            if (operation != "order") Assert.True(JsonElement.DeepEquals(affected, result.GetProperty("data")));
+            else Assert.Equal(place.Id, Assert.Single(result.GetProperty("affected").GetProperty("placeOrdersByRegionId").GetProperty(place.RegionId.ToString()).EnumerateArray()).GetGuid());
+        }
         await using var verify = fixture.CreateContext();
         var stored = await verify.Places.AsNoTracking().SingleAsync(p => p.Id == place.Id);
         Assert.Equal((place.Name, place.Notes, place.RegionId, place.IconName, place.MarkerColor),
@@ -292,10 +301,11 @@ public sealed partial class PlaceConditionalPostgresTests
         var request = new Dictionary<string, object?> { ["expected"] = new { regionId = place.RegionId, address = place.Address },
             ["changes"] = new { address = "Must not save" } };
         await PrepareStructureAsync(web, place, true, "coordinates", request);
+        var send = await PreparePlaceStructureDispatchAsync(web, place, "coordinates", request);
         await using var blocker = fixture.CreateContext();
         await using var transaction = await blocker.Database.BeginTransactionAsync();
         await blocker.Database.ExecuteSqlInterpolatedAsync($"SELECT 1 FROM public.\"Places\" WHERE \"Id\" = {place.Id} FOR UPDATE");
-        var pending = web.PutAsJsonAsync(StructurePath(place, true, "coordinates"), request);
+        var pending = send();
         await WaitForLockAsync(probe, 0);
         await blocker.Places.Where(p => p.Id == place.Id).ExecuteUpdateAsync(s => s.SetProperty(p => p.Location, (Point?)null));
         await transaction.CommitAsync();
@@ -323,7 +333,7 @@ public sealed partial class PlaceConditionalPostgresTests
         var request = new { expected = new { regionId = place.RegionId, address = place.Address, location = (object?)null },
             changes = new { reverseGeocode = true } };
         using var prepare = await web.PostAsJsonAsync(StructurePath(place, true, "coordinates") + "/prepare", request);
-        using var apply = await web.PutAsJsonAsync(StructurePath(place, true, "coordinates"), request);
+        using var apply = await DispatchPlaceStructureAsync(web, place, true, "coordinates", request);
         foreach (var response in new[] { prepare, apply })
         {
             Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);

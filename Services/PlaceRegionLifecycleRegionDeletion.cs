@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using Wayfarer.Models;
 using Wayfarer.Models.Dtos.Editor;
+using Wayfarer.Services.TripMetadataReceipts;
 
 namespace Wayfarer.Services;
 
@@ -10,59 +11,79 @@ public sealed partial class PlaceRegionLifecycleService
 {
     /// <summary>Obtains a coherent read-only preview; absent canonical destinations remain unpersisted.</summary>
     public async Task<RegionDeletionPreviewDto> PreviewRegionDeletionAsync(Guid tripId, Guid regionId, string userId,
-        RegionDeletionPreviewRequestDto choices, CancellationToken token)
+        RegionDeletionPreviewRequestDto choices, CancellationToken token, string? adapter = null)
     {
         await using var transaction = await BeginTransactionAsync(token, IsolationLevel.RepeatableRead);
-        var snapshot = await ReadRegionDeletionAsync(tripId, regionId, userId, choices, Guid.NewGuid(), token);
-        return BuildRegionDeletionPreview(snapshot, userId, choices);
+        var snapshot = await ReadRegionDeletionAsync(tripId, regionId, userId, choices, Guid.NewGuid(), token, adapter != null);
+        return BuildRegionDeletionPreview(snapshot, userId, choices, adapter);
     }
 
     /// <summary>Executes exactly one approved four-way operation, without destructive retry or legacy-token reuse.</summary>
-    public async Task<EditorMutationResult<RegionDeletionResultDto>> ConfirmRegionDeletionAsync(
-        Guid tripId, Guid regionId, string userId, RegionDeletionRequestDto request, CancellationToken token, Func<CancellationToken, Task<bool>>? authority = null)
+    public Task<EditorMutationResult<RegionDeletionResultDto>> ConfirmRegionDeletionAsync(
+        Guid tripId, Guid regionId, string userId, RegionDeletionRequestDto request, CancellationToken token, Func<CancellationToken, Task<bool>>? authority = null) =>
+        ConfirmRegionDeletionCoreAsync(tripId, regionId, userId, request, token, authority);
+
+    /// <summary>Runs the same four-way delete and optionally projects historical effects inside the receipt transaction.</summary>
+    private async Task<EditorMutationResult<RegionDeletionResultDto>> ConfirmRegionDeletionCoreAsync(
+        Guid tripId, Guid regionId, string userId, RegionDeletionRequestDto request, CancellationToken token,
+        Func<CancellationToken, Task<bool>>? authority, string? adapter = null,
+        Func<RegionDeletionSnapshot, EditorMutationResult<RegionDeletionResultDto>, Task>? capture = null)
     {
         if (string.IsNullOrWhiteSpace(request.ConfirmationToken))
+        {
+            if (adapter != null) throw new TripMetadataMutationRejected(409, "mutation-review-required", "Review and confirm the current consequences.");
             throw new RegionDeletionRejectedException(409, "region-deletion-confirmation-required", "Review and confirm the current consequences.",
                 await PreviewRegionDeletionAsync(tripId, regionId, userId, request, token));
-        var approval = _confirmation.ReadRegionDeletion(request.ConfirmationToken);
+        }
+        var approval = ReadConsent(request.ConfirmationToken, adapter);
         if (_confirmation.IsRegionDeletionExpired(approval) || approval.UserId != userId || approval.TripId != tripId
             || approval.SourceId != regionId || approval.Places != request.Places || approval.Areas != request.Areas)
             throw StaleRegionDeletion();
         var candidates = await ReadRegionDeletionAsync(tripId, regionId, userId, request,
-            approval.Destination.RegionId ?? Guid.NewGuid(), token);
+            approval.Destination.RegionId ?? Guid.NewGuid(), token, adapter != null);
         var snapshot = LifecycleTrackerSnapshot.Capture(_dbContext);
         var scope = new LifecycleRecoveryScope(candidates.Locks.PlaceIds, candidates.Locks.RegionIds, candidates.Locks.SegmentIds,
             candidates.AreaIds, candidates.Destination.Mode == "create" ? [candidates.Destination.RegionId!.Value] : []);
         var commitStarted = false;
         var trackerIsolated = false;
-        await using var transaction = await BeginTransactionAsync(token, IsolationLevel.ReadCommitted);
+        await using var transaction = adapter == null ? await BeginTransactionAsync(token, IsolationLevel.ReadCommitted) : null;
         try
         {
             await LockRegionDeletionAsync(candidates, token);
+            if (adapter != null && request.Places == "delete")
+                await LockVisitLinksAsync(candidates.Places.Select(place => place.Id).ToArray(), token);
             await LockDeletionAuthorityAsync(tripId, userId, authority, token);
             var current = await ReadRegionDeletionAsync(tripId, regionId, userId, request,
-                approval.Destination.RegionId ?? Guid.NewGuid(), token);
+                approval.Destination.RegionId ?? Guid.NewGuid(), token, adapter != null);
             if (_confirmation.IsRegionDeletionExpired(approval) || current.Locks.RequiresLocksOutside(candidates.Locks) || current.AreaIds.Except(candidates.AreaIds).Any()
-                || current.Destination != approval.Destination || RegionDeletionFingerprint(current) != approval.Fingerprint)
+                || current.Destination != approval.Destination || RegionConsentFingerprint(current, adapter) != approval.Fingerprint)
                 throw StaleRegionDeletion();
 
             // Caller-owned pending work cannot be implicitly saved with this operation, nor supply stale scalar inputs.
             foreach (var entry in _dbContext.ChangeTracker.Entries().ToArray()) entry.State = EntityState.Detached;
             trackerIsolated = true;
             var result = await ApplyRegionDeletionAsync(current, userId, request, token);
+            if (capture != null) await capture(current, result);
             // Projection is inside the transaction. A successful envelope is sent only after confirmed commit.
             commitStarted = true;
             if (transaction != null) await transaction.CommitAsync(token);
             RestoreAfterRegionDeletion(scope, snapshot);
             return result;
         }
-        catch (Exception original)
+        catch (Exception original) when (capture == null)
         {
             if (trackerIsolated) await RecoverAsync(original, transaction, scope, snapshot);
             else await RecoverUnappliedRegionDeletionAsync(original, transaction);
             if (!commitStarted && IsRegionDeletionContention(original)) throw StaleRegionDeletion();
             throw;
         }
+    }
+
+    /// <summary>Refuses a consent from another adapter or version as stale in the protected lane.</summary>
+    private RegionDeletionApproval ReadConsent(string token, string? adapter)
+    {
+        try { return _confirmation.ReadRegionDeletion(token, adapter); }
+        catch (RegionDeletionRejectedException) when (adapter != null) { throw StaleRegionDeletion(); }
     }
 
     /// <summary>Locks profiles → Segments → Places → Areas → Regions → Trip, with stable identities in each class.</summary>

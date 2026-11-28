@@ -39,8 +39,9 @@ public sealed partial class PlaceConditionalPostgresTests
         using var prepare = await client.PostAsJsonAsync(path + "/prepare", request);
         Assert.True(prepare.IsSuccessStatusCode, await prepare.Content.ReadAsStringAsync());
         request["conditionToken"] = (await prepare.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("conditionToken").GetString(); request["reviewed"] = true;
-        async Task<HttpResponseMessage> Structure() => operation == "order" || webStructural
-            ? await client.PutAsJsonAsync(path, request) : await client.PostAsJsonAsync(path, request);
+        Task<HttpResponseMessage> Structure() => operation == "order"
+            ? DispatchPlaceOrderAsync(client, graph.UserId, graph.TripId, graph.SourceId, webStructural, request)
+            : DispatchPlaceStructureAsync(client, place, webStructural, operation, request);
         Task<HttpResponseMessage> Notes() => webStructural
             ? PatchAsync(bearer, place, false, new { notes = place.Notes }, new { notes = "Opposite Notes" })
             : PatchAsync(web, place, true, new { notesHtml = place.Notes }, new { notesHtml = "Opposite Notes" });
@@ -100,8 +101,7 @@ public sealed partial class PlaceConditionalPostgresTests
             if (drift == "parent") await other.Places.Where(p => p.Id == place.Id).ExecuteUpdateAsync(s => s.SetProperty(p => p.RegionId, graph.DestinationId!.Value));
         }
         var preserved = await GraphStateAsync(graph.TripId);
-        using var result = web ? await client.PutAsJsonAsync(StructurePath(place, web, "coordinates"), request)
-            : await client.PostAsJsonAsync(StructurePath(place, web, "coordinates"), request);
+        using var result = await DispatchPlaceStructureAsync(client, place, web, "coordinates", request);
         Assert.Equal(HttpStatusCode.Conflict, result.StatusCode);
         Assert.DoesNotContain("New provenance", await result.Content.ReadAsStringAsync());
         Assert.Equal(preserved, await GraphStateAsync(graph.TripId));
@@ -127,8 +127,7 @@ public sealed partial class PlaceConditionalPostgresTests
         if (drift == "content") await db.Places.Where(p => p.Id == place.Id).ExecuteUpdateAsync(s => s.SetProperty(p => p.Notes, "New material Notes"));
         if (drift == "order") await db.Places.Where(p => p.Id == graph.PlaceIds[1]).ExecuteUpdateAsync(s => s.SetProperty(p => p.DisplayOrder, 99));
         if (drift == "membership") await db.Places.Where(p => p.Id == graph.PlaceIds[1]).ExecuteUpdateAsync(s => s.SetProperty(p => p.RegionId, graph.DestinationId!.Value));
-        using var response = web ? await client.PutAsJsonAsync(StructurePath(place, web, "move"), request)
-            : await client.PostAsJsonAsync(StructurePath(place, web, "move"), request);
+        using var response = await DispatchPlaceStructureAsync(client, place, web, "move", request);
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
         await using var verify = fixture.CreateContext();
         Assert.Equal(place.RegionId, (await verify.Places.FindAsync(place.Id))!.RegionId);
@@ -180,11 +179,12 @@ public sealed partial class PlaceConditionalPostgresTests
         using var web = await WebAsync(app, place.UserId);
         var request = await MoveRequestAsync(place, graph.DestinationId!.Value, true);
         await PrepareStructureAsync(web, place, true, "move", request);
+        var send = await PreparePlaceStructureDispatchAsync(web, place, "move", request);
         await using var blocker = fixture.CreateContext();
         await using var transaction = await blocker.Database.BeginTransactionAsync();
         // Hold the row this writer changes; holding the target can deadlock against an earlier sibling lock.
         await blocker.Database.ExecuteSqlInterpolatedAsync($"SELECT 1 FROM public.\"Places\" WHERE \"Id\" = {graph.PlaceIds[1]} FOR UPDATE");
-        var pending = web.PutAsJsonAsync(StructurePath(place, true, "move"), request);
+        var pending = send();
         await WaitForLockAsync(probe, 0);
         Assert.False(pending.IsCompleted);
         output.WriteLine("Routed move reached a physical PostgreSQL Place wait before the sibling membership change.");
@@ -270,9 +270,10 @@ public sealed partial class PlaceConditionalPostgresTests
         await PrepareStructureAsync(web, place, true, "coordinates", request);
         var segmentId = graph.EndpointIds[0];
         var plan = new PlanningAggregate(1, [new(Guid.NewGuid(), new("unknown"))]);
+        web.DefaultRequestHeaders.Add("X-Wayfarer-Trip-Dispatch", "3");
         using var saved = await web.PatchAsJsonAsync($"/api/trips/{graph.TripId}/editor/planning/segment/{segmentId}", new { expected = new { parentId = graph.TripId, planning = (object?)null }, operation = "set", value = plan });
         Assert.Equal(HttpStatusCode.OK, saved.StatusCode);
-        using var moved = await web.PutAsJsonAsync(StructurePath(place, true, "coordinates"), request);
+        using var moved = await DispatchPlaceStructureAsync(web, place, true, "coordinates", request);
         Assert.Equal(HttpStatusCode.OK, moved.StatusCode);
         await using var verify = fixture.CreateContext();
         Assert.True(PlanningCodec.Equal(plan, (await verify.Segments.AsNoTracking().SingleAsync(s => s.Id == segmentId)).Planning));

@@ -4833,8 +4833,23 @@
   <data name="Editor.ReceiptMyTrips" xml:space="preserve"><value>Recover Trip saves and drafts</value></data>
   <data name="Editor.ReceiptDraftNotes" xml:space="preserve"><value>Retained Notes draft</value></data>
   <data name="Editor.ReceiptMapCenter" xml:space="preserve"><value>Map center</value></data>
+  <data name="Editor.StructureCheckServer" xml:space="preserve"><value>Check server</value></data>
+  <data name="Editor.StructureDependentHeld" xml:space="preserve"><value>An earlier Planning or Segment save is still unconfirmed.</value></data>
+  <data name="Editor.StructureLegacyHold" xml:space="preserve"><value>An earlier Region deletion has no recoverable receipt.</value></data>
+  <data name="Editor.StructureDismiss" xml:space="preserve"><value>Dismiss notice</value></data>
+  <data name="Editor.StructureDraft" xml:space="preserve"><value>Retained draft</value></data>
+  <data name="Editor.StructureStaleDraft" xml:space="preserve"><value>This draft is out of date. Review the retained draft in Trip save recovery before trying again.</value></data>
+  <data name="Editor.StructureTargetUnavailable" xml:space="preserve"><value>The original target is no longer available.</value></data>
+  <data name="Editor.StructureParentChanged" xml:space="preserve"><value>Review the changed parent before saving.</value></data>
+  <data name="Editor.StructureDiscard" xml:space="preserve"><value>Discard local draft</value></data>
   <data name="Editor.ReceiptApplied" xml:space="preserve"><value>The earlier Trip save was confirmed.</value></data>
   <data name="Editor.ReceiptNoOp" xml:space="preserve"><value>The earlier save confirmed those values were already saved.</value></data>
   <data name="Editor.ReceiptUnapplied" xml:space="preserve"><value>The earlier save was refused. Review the current values before saving again.</value></data>
   <data name="Editor.ReceiptRetired" xml:space="preserve"><value>The earlier save can no longer run. Its historical result is unavailable.</value></data>
+  <data name="Editor.StructureSavedUnavailable" xml:space="preserve"><value>Saved, current details unavailable.</value></data>
+  <data name="Editor.StructureSavedOrders" xml:space="preserve"><value>Orders at time of save</value></data>
+  <data name="Editor.StructureRegionOrder" xml:space="preserve"><value>Saved Region order</value></data>
+  <data name="Editor.StructurePlaceOrder" xml:space="preserve"><value>Saved Place order</value></data>
+  <data name="Editor.StructureAreaOrder" xml:space="preserve"><value>Saved Area order</value></data>
+  <data name="Editor.StructureCurrentRegion" xml:space="preserve"><value>Current Region</value></data>
 </root>

@@ -8,7 +8,7 @@ namespace Wayfarer.Models.Dtos;
 internal sealed record RegionConditionalRequest(Dictionary<string, object?> Expected, Dictionary<string, object?> Changes)
 {
     /// <summary>Rejects ambiguous JSON and preserves explicit nullable originals independently of display defaults.</summary>
-    internal static async Task<RegionConditionalRequest> ReadAsync(Stream body, bool web, CancellationToken token)
+    internal static async Task<RegionConditionalRequest> ReadAsync(Stream body, bool web, CancellationToken token, bool protectedWrite = false)
     {
         try
         {
@@ -16,7 +16,8 @@ internal sealed record RegionConditionalRequest(Dictionary<string, object?> Expe
             var root = Fields(document.RootElement, ["expected", "changes"]);
             if (!root.TryGetValue("expected", out var expected) || !root.TryGetValue("changes", out var changes))
                 throw Invalid("request", "Both expected and changes objects are required.");
-            string[] allowed = web ? ["name", "notesHtml", "coverImage", "center"] : ["name", "notes"];
+            string[] allowed = web ? ["name", "notesHtml", "coverImage", "center"]
+                : protectedWrite ? ["name", "notes", "center"] : ["name", "notes"];
             var originals = Fields(expected, allowed);
             var desired = Fields(changes, allowed);
             var parsed = new RegionConditionalRequest([], []);

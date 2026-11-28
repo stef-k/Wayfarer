@@ -1,5 +1,8 @@
+import { saveStructureIntent } from '../recovery/structureMutation';
+import { StaleStructureDraft } from '../recovery/structureCustody';
+import { structureContract } from '../recovery/structureRoutes';
 import { type RegionOrderOriginals, validateRegionOrderAcknowledgement, validateRegionOrderPreview } from './regionOrdering';
-import { onUnmounted, watch } from 'vue';
+import { computed, onUnmounted, watch } from 'vue';
 import { message, plural } from '../../../../wwwroot/js/localization/messages.js';
 import { validateRegionCreation, type RegionCreationRequest } from '../api/creationTypes';
 import { createRegion, EditorLifecycleConfirmationError, EditorMutationHttpError, EditorValidationError, orderRegions, prepareRegionOrder, updateRegion } from '../api/tripEditorApi';
@@ -14,12 +17,37 @@ export function useRegionEditorActions(context: any) {
   let editorAlive = true;
   const owner = context.regionDraftState;
   let savingSession: number | null = null;
+  let creationDraftId: string | undefined;
   watch(() => owner.session(), () => {
     if (savingSession === null) return;
     savingSession = null;
     context.isSaving.value = false;
   }, { flush: 'sync' });
   onUnmounted(() => { editorAlive = false; });
+  // A reopened or reset form cannot inherit another form's staged generation.
+  const stageSession = computed(() => Symbol(owner.session()));
+  /** Persists typed Region intent even while an earlier response or permit is in flight. */
+  watch([stageSession, () => {
+    try {
+      if (context.draft.id && context.activeRegion.value) {
+        const payload = owner.request();
+        return Object.keys(payload.changes).length ? JSON.stringify(payload) : null;
+      }
+      if (!creationDraftId || !owner.creationOriginals.value || !context.regionCreateBaselineRequest.value) return null;
+      const value = buildRegionRequest(context.draft);
+      return JSON.stringify(value) === JSON.stringify(context.regionCreateBaselineRequest.value) ? null
+        : JSON.stringify({ expected: { regions: owner.creationOriginals.value }, value });
+    } catch { return null; }
+  }], ([session, frozen]) => {
+    if (!frozen) return;
+    const id = context.draft.id;
+    const target = id ? { type: 'region' as const, id } : { type: 'trip' as const, id: context.props.state.tripId };
+    void saveStructureIntent(context.props.editorEndpoint, id ? 'region-fields' : 'region-create', target,
+      JSON.parse(frozen), id ? undefined : creationDraftId, session).catch(error => {
+      if (editorAlive && session === stageSession.value && error instanceof StaleStructureDraft)
+        context.applyError(error, 'Region save failed.');
+    });
+  });
   /// Unknown earlier Region effects fence conflicting metadata/reorder/deletion actions in this Trip.
   const held = (): boolean => {
     const mount = document.getElementById('trip-editor-app');
@@ -29,6 +57,7 @@ export function useRegionEditorActions(context: any) {
 
   /** Restores a clean creation draft with the document's suggested Region name. */
   const resetRegionCreation = (): void => {
+    creationDraftId = crypto.randomUUID();
     owner.reset(null);
     owner.beginCreate(context.props.state);
     context.draft.name = message('Editor.NewRegionDraftName', 'New Region');
@@ -112,10 +141,10 @@ export function useRegionEditorActions(context: any) {
       if (creation) owner.creationUncertain.value = true;
       const result = regionId
         ? await updateRegion(context.props.editorEndpoint, regionId, context.props.antiforgeryToken, submitted)
-        : await createRegion(context.props.editorEndpoint, context.props.antiforgeryToken, creation!);
+        : await createRegion(context.props.editorEndpoint, context.props.antiforgeryToken, creation!, creationDraftId);
       if (!currentAttempt()) return;
       if (creation) {
-        validateRegionCreation(result, context.props.state.tripId, creation);
+        if (result.contract !== structureContract) validateRegionCreation(result, context.props.state.tripId, creation);
         owner.creationUncertain.value = false;
       }
       // Acknowledge before emitting: Vue schedules the parent's authoritative props for a later tick.
@@ -127,7 +156,7 @@ export function useRegionEditorActions(context: any) {
     } catch (error) {
       if (!currentAttempt()) return;
       // A transport/server failure is not evidence of no effect. Preserve even a newer reversal to the old base.
-      const rejected = error instanceof EditorValidationError || error instanceof EditorLifecycleConfirmationError
+      const rejected = error instanceof StaleStructureDraft || error instanceof EditorValidationError || error instanceof EditorLifecycleConfirmationError
         || error instanceof EditorMutationHttpError && [401, 403, 404, 405, 409, 429].includes(error.status);
       if (creation && rejected) owner.creationUncertain.value = false;
       if (dispatched && !rejected) {
@@ -209,6 +238,7 @@ export function useRegionEditorActions(context: any) {
     owner.orderingPending.value = true;
     context.resetFeedback();
     try {
+      await saveStructureIntent(context.props.editorEndpoint, 'region-order', { type: 'trip', id: tripId }, request);
       const preview = await prepareRegionOrder(context.props.editorEndpoint, context.props.antiforgeryToken, request);
       if (!currentAttempt()) return;
       validateRegionOrderPreview(preview, tripId, request.expected);
@@ -225,7 +255,7 @@ export function useRegionEditorActions(context: any) {
       owner.orderUncertain.value = true;
       dispatched = true;
       const result = await orderRegions(context.props.editorEndpoint, context.props.antiforgeryToken, request);
-      validateRegionOrderAcknowledgement(result, tripId, request);
+      if (result.contract !== structureContract) validateRegionOrderAcknowledgement(result, tripId, request);
       owner.orderUncertain.value = false;
       owner.orderIntent.value = null;
       owner.orderingPending.value = false;
@@ -234,7 +264,8 @@ export function useRegionEditorActions(context: any) {
       // Reordering does not acknowledge or reset a newer scalar draft.
       if (Object.keys(owner.request().changes).length === 0 && !context.isDirty.value) context.markSaved();
     } catch (error) {
-      const rejected = error instanceof EditorValidationError || error instanceof EditorMutationHttpError && [401, 403, 404, 405, 409, 429].includes(error.status);
+      const rejected = error instanceof StaleStructureDraft || error instanceof EditorValidationError
+        || error instanceof EditorMutationHttpError && [401, 403, 404, 405, 409, 429].includes(error.status);
       if (rejected || !dispatched) { owner.orderUncertain.value = false; owner.orderIntent.value = null; }
       if (!currentAttempt()) return;
       const heldError = dispatched && !rejected ? new Error('The Region order could not be confirmed and may have committed. Your intent is retained. Do not replay it; refresh/reset cannot prove noncommit. Explicitly leave without saving to abandon this page.') : error;

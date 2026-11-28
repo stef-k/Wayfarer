@@ -6,12 +6,16 @@ namespace Wayfarer.Services;
 
 public sealed partial class PlaceRegionLifecycleService
 {
+    /// <summary>Enrichment remains compatible when only normalized Address whitespace differs.</summary>
+    internal static bool CompatibleAddress(string? current, string? desired) =>
+        string.Equals(current?.Trim() ?? string.Empty, desired?.Trim() ?? string.Empty, StringComparison.Ordinal);
+
     /// <summary>Applies resolved scalar and editor metadata intent to the locked row in the existing transaction.</summary>
     private static void ApplyScalarUpdate(Place place, PlaceLifecycleUpdate update)
     {
         var directive = update.EditorMetadata;
         if (directive != null && (directive.Policy == EditorPlaceMetadataPolicy.Replace
-            || !string.Equals(place.Address?.Trim() ?? string.Empty, update.Address?.Trim() ?? string.Empty, StringComparison.Ordinal)
+            || !CompatibleAddress(place.Address, update.Address)
             || !CoordinatesEqual(place.Location, update.Location)))
         {
             var metadata = directive.Policy == EditorPlaceMetadataPolicy.Replace ? directive.Replacement : default;

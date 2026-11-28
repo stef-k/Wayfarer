@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Wayfarer.Services.ExternalRouting;
 
 namespace Wayfarer.Models.Dtos.Editor;
@@ -149,6 +150,7 @@ public sealed record EditorPlaceDto(
 public sealed record EditorPlaceOriginalDto(Guid RegionId, string Name, string? NotesHtml, string? IconName, string? MarkerColor)
 {
     /// <summary>Exact stored nullable order for checked creation; display zero is not a null original.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public int? DisplayOrder { get; init; }
     /// <summary>Exact nullable Address for intentional Web structural edits; display empty is not original null.</summary>
     public string? Address { get; init; }
@@ -176,7 +178,12 @@ public sealed record EditorAreaDto(
 }
 
 /// <summary>Nullable canonical Notes, exact scalar originals and persisted Polygon fingerprint for Area editing.</summary>
-public sealed record EditorAreaOriginalValues(Guid RegionId, string Name, string? NotesHtml, string? FillHex, string Geometry);
+public sealed record EditorAreaOriginalValues(Guid RegionId, string Name, string? NotesHtml, string? FillHex, string Geometry)
+{
+    /// <summary>The exact stored sibling order, including a historical null.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
+    public int? DisplayOrder { get; init; }
+}
 
 /// <summary>Segment DTO with GeoJSON object route geometry.</summary>
 public sealed record EditorSegmentDto(

@@ -12,8 +12,13 @@ internal sealed record TripMetadataIdentity(string Contract, string SubjectId, s
 {
     internal const string Version = "trip-metadata-receipt-1";
     internal const string Version2 = "trip-metadata-receipt-2";
+    internal const string StructureVersion = Models.Dtos.TripStructureOwnerSnapshot.Contract;
     internal const string OperationKind = "metadata";
     internal const string ProofHeader = "X-Wayfarer-Trip-Attempt";
+
+    /// <summary>Typed path binding for protected Region, Place and Area operations.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public TripReceiptTarget? Target { get; init; }
 
     /// <summary>Requires the published lowercase SHA-256 representation.</summary>
     internal static bool IsDigest(string? value) => value is { Length: 71 } && value.StartsWith("sha256:", StringComparison.Ordinal)
@@ -49,12 +54,30 @@ internal sealed record TripMetadataIdentity(string Contract, string SubjectId, s
     }
 
     /// <summary>Writes a flat envelope with the same publicly named correlation fields for all routes.</summary>
-    internal Dictionary<string, object?> Envelope() => new()
+    internal Dictionary<string, object?> Envelope()
     {
-        ["contract"] = Contract, ["subjectId"] = SubjectId, ["adapter"] = Adapter, ["kind"] = Kind,
-        ["tripId"] = TripId, ["requestDigest"] = RequestDigest, ["operationId"] = OperationId, ["executeBeforeUtc"] = ExecuteBeforeUtc
-    };
+        var envelope = new Dictionary<string, object?>
+        {
+            ["contract"] = Contract, ["subjectId"] = SubjectId, ["adapter"] = Adapter, ["kind"] = Kind, ["tripId"] = TripId
+        };
+        if (Target != null) envelope.Add("target", Target);
+        envelope.Add("requestDigest", RequestDigest);
+        envelope.Add("operationId", OperationId);
+        envelope.Add("executeBeforeUtc", ExecuteBeforeUtc);
+        return envelope;
+    }
+
+    /// <summary>Frames the typed route and the exact submitted bytes.</summary>
+    internal string StructureDigest(byte[] body)
+    {
+        var target = Target ?? throw new InvalidOperationException("A typed digest requires a route target.");
+        return Hash(Utf8(Contract), Utf8(Kind), Utf8(Adapter), Utf8(SubjectId), Utf8(TripId.ToString("D")),
+            Utf8(target.Type), Utf8(target.Id.ToString("D")), body);
+    }
 }
+
+/// <summary>Exact path identity of the protected write target.</summary>
+internal sealed record TripReceiptTarget(string Type, Guid Id);
 
 /// <summary>Stored terminal result, or the outcome of one synchronized observation.</summary>
 internal sealed record TripMetadataEvidence(string State, string HistoricalOutcome, bool? FutureEffects)
@@ -76,6 +99,10 @@ internal sealed record TripMetadataEvidence(string State, string HistoricalOutco
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Code { get; init; }
+
+    /// <summary>Versioned commit projection for a typed Trip operation.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public JsonElement? Result { get; init; }
 
     /// <summary>Field guidance on a v2 validation refusal, preserved for replay and lookup.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]

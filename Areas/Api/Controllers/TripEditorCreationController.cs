@@ -9,6 +9,7 @@ public sealed partial class TripEditorController
     /// Creates a normal region for an owned trip.
     /// </summary>
     [HttpPost("regions/conditional")]
+    [RequireTripStructureDispatch(replaced: true)]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> CreateRegion(Guid tripId, CancellationToken cancellationToken)
     {
@@ -30,6 +31,7 @@ public sealed partial class TripEditorController
     /// Creates a place in a normal owned region.
     /// </summary>
     [HttpPost("regions/{regionId:guid}/places/conditional")]
+    [RequireTripStructureDispatch(replaced: true)]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> CreatePlace(Guid tripId, Guid regionId, CancellationToken cancellationToken)
     {

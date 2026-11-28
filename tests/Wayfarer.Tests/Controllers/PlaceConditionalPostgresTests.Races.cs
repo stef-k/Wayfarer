@@ -41,16 +41,20 @@ public sealed partial class PlaceConditionalPostgresTests
         var probe = new PlaceProbe(lockedTable);
         await using var app = await StartAsync(db, [probe]);
         using var client = web ? await WebAsync(app, place.Region.UserId) : Bearer(app, place.Region.UserId);
+        var key = drift == "name" ? "name" : drift == "icon" ? "iconName" : drift == "color" ? "markerColor" : web ? "notesHtml" : "notes";
+        var original = key == "name" ? place.Name : key == "iconName" ? place.IconName : key == "markerColor" ? place.MarkerColor : place.Notes;
+        var desired = key == "iconName" ? "star" : key == "markerColor" ? "bg-red" : "Must not commit";
+        var expected = new Dictionary<string, object?> { ["regionId"] = place.RegionId, [key] = original };
+        var changes = new Dictionary<string, object?> { [key] = desired };
+        var send = web ? await PreparePlaceFieldsAsync(client, place, expected, changes)
+            : () => PatchAsync(client, place, false, expected, changes);
         await using var blocker = fixture.CreateContext();
         await using var transaction = await blocker.Database.BeginTransactionAsync();
         var lockId = lockedTable == "Places" ? place.Id : lockedTable == "Regions" ? place.RegionId : place.Region.TripId;
         if (lockedTable == "Places") await blocker.Database.ExecuteSqlInterpolatedAsync($"SELECT 1 FROM public.\"Places\" WHERE \"Id\" = {lockId} FOR UPDATE");
         else if (lockedTable == "Regions") await blocker.Database.ExecuteSqlInterpolatedAsync($"SELECT 1 FROM public.\"Regions\" WHERE \"Id\" = {lockId} FOR UPDATE");
         else await blocker.Database.ExecuteSqlInterpolatedAsync($"SELECT 1 FROM public.\"Trips\" WHERE \"Id\" = {lockId} FOR UPDATE");
-        var key = drift == "name" ? "name" : drift == "icon" ? "iconName" : drift == "color" ? "markerColor" : web ? "notesHtml" : "notes";
-        var original = key == "name" ? place.Name : key == "iconName" ? place.IconName : key == "markerColor" ? place.MarkerColor : place.Notes;
-        var desired = key == "iconName" ? "star" : key == "markerColor" ? "bg-red" : "Must not commit";
-        var pending = PatchAsync(client, place, web, new Dictionary<string, object?> { [key] = original }, new Dictionary<string, object?> { [key] = desired });
+        var pending = send();
         try
         {
             await WaitForLockAsync(probe, 0);
@@ -90,12 +94,13 @@ public sealed partial class PlaceConditionalPostgresTests
         await using var app = await StartAsync(db, [probe]);
         using var web = await WebAsync(app, place.Region.UserId);
         using var bearer = Bearer(app, place.Region.UserId);
+        var sendWeb = await PreparePlaceFieldsAsync(web, place, new { regionId = place.RegionId, name = place.Name, iconName = place.IconName },
+            new { name = "Concurrent Web name", iconName = "star" });
         await using var blocker = fixture.CreateContext();
         await using var transaction = await blocker.Database.BeginTransactionAsync();
         await blocker.Database.ExecuteSqlInterpolatedAsync($"SELECT 1 FROM public.\"Places\" WHERE \"Id\" = {place.Id} FOR UPDATE");
         Task<HttpResponseMessage> Save(bool isWeb) => isWeb
-            ? PatchAsync(web, place, true, new { name = place.Name, iconName = place.IconName },
-                new { name = "Concurrent Web name", iconName = "star" })
+            ? sendWeb()
             : PatchAsync(bearer, place, false, new { notes = place.Notes, markerColor = place.MarkerColor }, new { notes = "Concurrent Mobile notes", markerColor = "bg-red" });
         var first = Save(webFirst);
         Task<HttpResponseMessage>? second = null;
@@ -179,11 +184,14 @@ public sealed partial class PlaceConditionalPostgresTests
     /// <summary>Injects loss before or after the real transaction commit without introducing a receipt/retry facility.</summary>
     private sealed class FailPlaceCommit(bool afterCommit) : DbTransactionInterceptor
     {
+        /// <summary>Leaves permit issuance and read transactions unmodified when testing protected apply.</summary>
+        internal bool Armed { get; set; } = true;
+
         public override ValueTask<InterceptionResult> TransactionCommittingAsync(DbTransaction transaction, TransactionEventData data,
-            InterceptionResult result, CancellationToken cancellationToken = default) => afterCommit
+            InterceptionResult result, CancellationToken cancellationToken = default) => !Armed || afterCommit
                 ? ValueTask.FromResult(result) : throw new IOException("Controlled precommit failure");
         public override Task TransactionCommittedAsync(DbTransaction transaction, TransactionEndEventData data, CancellationToken cancellationToken = default) =>
-            afterCommit ? throw new IOException("Controlled loss of commit acknowledgement") : Task.CompletedTask;
+            Armed && afterCommit ? throw new IOException("Controlled loss of commit acknowledgement") : Task.CompletedTask;
     }
 
     /// <summary>Captures actual property footprints and connection IDs without logging private parameter values.</summary>

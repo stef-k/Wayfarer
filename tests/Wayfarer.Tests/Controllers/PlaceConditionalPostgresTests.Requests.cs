@@ -1,3 +1,4 @@
+using Wayfarer.Services.TripMetadataReceipts;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text;
@@ -48,9 +49,10 @@ public sealed partial class PlaceConditionalPostgresTests
         await using var db = fixture.CreateContext();
         await using var app = await StartAsync(db, [probe]);
         using var client = web ? await WebAsync(app, place.UserId) : Bearer(app, place.UserId);
-        using var response = await client.PatchAsync(web ? $"/api/trips/{place.Region.TripId}/editor/places/{place.Id}/conditional"
-            : $"/api/trips/{place.Region.TripId}/conditional/places/{place.Id}",
-            new StringContent(json.Replace("PARENT", place.RegionId.ToString()), Encoding.UTF8, "application/json"));
+        var body = json.Replace("PARENT", place.RegionId.ToString());
+        using var response = web ? await DispatchPlaceFieldsAsync(client, place, body)
+            : await client.PatchAsync($"/api/trips/{place.Region.TripId}/conditional/places/{place.Id}",
+                new StringContent(body, Encoding.UTF8, "application/json"));
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Contains("mutation-request-invalid", await response.Content.ReadAsStringAsync());
         Assert.Empty(probe.Updates);
@@ -71,10 +73,11 @@ public sealed partial class PlaceConditionalPostgresTests
         using var web = await WebAsync(app, place.Region.UserId);
         using var bearer = Bearer(app, place.Region.UserId);
         var route = $"/api/trips/{place.Region.TripId}/editor/regions/{place.RegionId}";
-        using var previewResponse = await web.PostAsJsonAsync(route + "/deletion-preview", new { places = "keep", areas = "keep" });
+        using var previewResponse = await web.PostAsJsonAsync(route + "/deletion-preview?contract=" + TripMetadataIdentity.StructureVersion, new { places = "keep", areas = "keep" });
         Assert.Equal(HttpStatusCode.OK, previewResponse.StatusCode);
         var preview = (await previewResponse.Content.ReadFromJsonAsync<RegionDeletionPreviewDto>())!;
-        using var deletion = await web.PostAsJsonAsync(route + "/deletion", new { places = "keep", areas = "keep", confirmationToken = preview.Confirmation.Token });
+        using var deletion = await TripMetadataReceiptHttp.DispatchRegionDeletionAsync(web, place.Region.UserId, place.Region.TripId, place.RegionId,
+            new { places = "keep", areas = "keep", confirmationToken = preview.Confirmation.Token });
         Assert.Equal(HttpStatusCode.OK, deletion.StatusCode);
         using var staleWeb = await PatchAsync(web, place, true, new { notesHtml = place.Notes }, new { notesHtml = "Old scope" });
         using var staleBearer = await PatchAsync(bearer, place, false, new { notes = place.Notes }, new { notes = "Old scope" });

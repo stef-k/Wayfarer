@@ -1,7 +1,10 @@
+import { saveStructureIntent } from '../recovery/structureMutation';
+import { StaleStructureDraft } from '../recovery/structureCustody';
+import { structureContract } from '../recovery/structureRoutes';
 import { message, plural } from '../../../../wwwroot/js/localization/messages.js';
 import { editorWarningText } from './editorFeedbackText';
 import { validatePlaceCreation, type PlaceCreationRequest } from '../api/creationTypes';
-import { nextTick, onUnmounted, watch } from 'vue';
+import { computed, nextTick, onUnmounted, watch } from 'vue';
 import { createPlace, previewPlaceDeletion, deletePlace, EditorLifecycleConfirmationError, EditorMutationHttpError, EditorValidationError, orderPlaces, preparePlaceStructure, updatePlace, updatePlaceConditional } from '../api/tripEditorApi';
 import type { EditorGeocodeSearchResult, EditorMutationResult, EditorPlace, EditorRegion, Guid } from '../types';
 import { confirm } from '../composables/useConfirmDialog';
@@ -17,7 +20,34 @@ export function usePlaceEditorActions(context: any) {
   const owner = context.placeDraftState;
   let alive = true;
   let savingSession: number | null = null;
+  let creationDraftId: string | undefined;
   onUnmounted(() => { alive = false; });
+  // A reopened or reset form cannot inherit another form's staged generation.
+  const stageSession = computed(() => Symbol(owner.session()));
+  /** Captures newer scalar, structural and map/search creation intent with fixed comparison originals. */
+  watch([stageSession, () => {
+    try {
+      if (context.placeDraft.id) {
+        const structural = owner.structural();
+        const payload = structural ? owner.structuralRequest() : owner.request();
+        return Object.keys(payload.changes).length ? JSON.stringify({ kind: structural ? 'place-save' : 'place-fields', payload }) : null;
+      }
+      const value = buildPlaceRequest(context.placeDraft);
+      const originals = value.regionId && owner.creationOriginals.value?.[value.regionId];
+      if (!creationDraftId || !originals || !context.placeCreateBaselineRequest.value ||
+          JSON.stringify(value) === JSON.stringify(context.placeCreateBaselineRequest.value)) return null;
+      return JSON.stringify({ kind: 'place-create', payload: { expected: { regionId: value.regionId, places: originals }, value: withoutRegionId(value) } });
+    } catch { return null; }
+  }], ([session, frozen]) => {
+    if (!frozen) return;
+    const { kind, payload } = JSON.parse(frozen);
+    const id = context.placeDraft.id;
+    const target = id ? { type: 'place' as const, id } : { type: 'region' as const, id: context.placeDraft.regionId };
+    void saveStructureIntent(context.props.editorEndpoint, kind, target, payload, id ? undefined : creationDraftId, session).catch(error => {
+      if (alive && session === stageSession.value && error instanceof StaleStructureDraft)
+        context.applyError(error, 'Place save failed.');
+    });
+  });
   // Discard retires this attempt's UI gate without declaring that the server did not commit.
   watch(() => owner.session(), () => {
     if (savingSession === null) return;
@@ -47,6 +77,7 @@ export function usePlaceEditorActions(context: any) {
 
     Object.assign(context.draft, emptyRegionDraft());
     owner.reset(null);
+    creationDraftId = crypto.randomUUID();
     owner.beginCreate(context.props.state);
     Object.assign(context.placeDraft, emptyPlaceDraft(region.id));
     Object.assign(context.areaDraft, emptyAreaDraft());
@@ -173,17 +204,17 @@ export function usePlaceEditorActions(context: any) {
         ? await updatePlaceConditional(context.props.editorEndpoint, placeId, context.props.antiforgeryToken, conditional)
         : placeId
           ? await updatePlace(context.props.editorEndpoint, placeId, context.props.antiforgeryToken, structure!)
-          : await createPlace(context.props.editorEndpoint, complete.regionId!, context.props.antiforgeryToken, creation!);
+          : await createPlace(context.props.editorEndpoint, complete.regionId!, context.props.antiforgeryToken, creation!, creationDraftId);
       if (structure) {
-        validatePlaceAcknowledgement(result, context.props.state.tripId, placeId, complete.regionId!, scalar, structure, segmentIds);
+        if (result.contract !== structureContract) validatePlaceAcknowledgement(result, context.props.state.tripId, placeId, complete.regionId!, scalar, structure, segmentIds);
         releaseAttempt();
       }
       if (!currentAttempt()) return;
       if (creation) {
-        validatePlaceCreation(result, context.props.state.tripId, creation);
+        if (result.contract !== structureContract) validatePlaceCreation(result, context.props.state.tripId, creation);
         owner.creationUncertain.value = false;
       }
-      else if (!structure) validatePlaceAcknowledgement(result, context.props.state.tripId, placeId, complete.regionId!, scalar);
+      else if (!structure && result.contract !== structureContract) validatePlaceAcknowledgement(result, context.props.state.tripId, placeId, complete.regionId!, scalar);
       owner.acknowledge(result.data, conditional?.changes ?? complete);
       for (const [regionId, ids] of Object.entries(result.affected.placeOrdersByRegionId) as [string, string[]][]) {
         if (owner.structuralOrders.value) owner.structuralOrders.value[regionId] = ids.map(id => {
@@ -197,7 +228,7 @@ export function usePlaceEditorActions(context: any) {
       context.props.editorSurface.replaceActiveTarget(context.activePlaceTarget.value);
       if (!owner.creationUncertain.value && !owner.structural() && Object.keys(owner.request().changes).length === 0) context.markSaved(result.warnings.map(warning => editorWarningText(warning.code)), 'Place saved');
     } catch (error) {
-      const rejected = error instanceof EditorValidationError || error instanceof EditorLifecycleConfirmationError
+      const rejected = error instanceof StaleStructureDraft || error instanceof EditorValidationError || error instanceof EditorLifecycleConfirmationError
         || error instanceof EditorMutationHttpError && [401, 403, 404, 405, 409, 429].includes(error.status);
       if (rejected) releaseAttempt();
       if (!currentAttempt()) return;
@@ -257,7 +288,7 @@ export function usePlaceEditorActions(context: any) {
       owner.structuralHolds.value.push({ targetId: place.id, regionIds: [place.regionId], intent: attemptId });
       dispatched = true;
       const result = await deletePlace(context.props.editorEndpoint, place.id, context.props.antiforgeryToken, preview.confirmation.token);
-      validatePlaceDeletionAcknowledgement(result, preview);
+      if (result.contract !== structureContract) validatePlaceDeletionAcknowledgement(result, preview);
       if (!scopeCurrent()) return;
       const clearTarget = unchanged();
       context.emit('mutationApplied', result as EditorMutationResult<unknown>);
@@ -334,7 +365,7 @@ export function usePlaceEditorActions(context: any) {
       owner.structuralHolds.value.push({ targetId: regionId, regionIds: [regionId], intent: attemptIntent });
       dispatched = true;
       const result = await orderPlaces(context.props.editorEndpoint, regionId, context.props.antiforgeryToken, request);
-      validatePlaceOrderAcknowledgement(result, context.props.state.tripId, regionId, ids, originals);
+      if (result.contract !== structureContract) validatePlaceOrderAcknowledgement(result, context.props.state.tripId, regionId, ids, originals);
       releaseAttempt();
       if (!currentAttempt()) return;
       context.emit('mutationApplied', result as EditorMutationResult<unknown>);

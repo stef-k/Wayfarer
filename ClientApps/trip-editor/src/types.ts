@@ -342,6 +342,7 @@ export interface EditorAreaSaveRequest {
 }
 
 export interface EditorAreaOrderRequest {
+  expected: { areas: ReturnType<typeof import('./recovery/structureOwner').areaMaterials> };
   areaIds: Guid[];
 }
 

@@ -205,9 +205,35 @@ namespace Wayfarer.Parsers
             if (_contactGate == null || !HasValidCoordinates(latitude, longitude))
                 return ReverseGeocodingResult.Unavailable(ReverseGeocodingCategory.InvalidRequest);
             var admission = await _contactGate.AdmitPersistentGeocodingAsync(userId, cancellationToken);
+            return await EnrichAdmittedPlaceAsync(admission, userId, latitude, longitude, cancellationToken);
+        }
+
+        /// <summary>Admits a protected Place resolution under the deletion fence and releases all locks before HTTP.</summary>
+        internal async Task<ReverseGeocodingResult> EnrichProtectedPlaceAsync(ApplicationDbContext db, string userId,
+            double latitude, double longitude, Func<CancellationToken, Task> validateAuthority, CancellationToken token)
+        {
+            if (_contactGate == null || !HasValidCoordinates(latitude, longitude))
+                return ReverseGeocodingResult.Unavailable(ReverseGeocodingCategory.InvalidRequest);
+
+            await _contactGate.PrepareProtectedGeocodingAsync(userId, token);
+            PersonalProviderAdmission admission;
+            await using (var transaction = await LocationDeletionFence.BeginAsync(db, userId, token))
+            {
+                admission = await _contactGate.AdmitPreparedPersistentGeocodingAsync(userId, token,
+                    validateMeteredAuthority: validateAuthority);
+                if (transaction != null) await transaction.CommitAsync(token);
+            }
+            return await EnrichAdmittedPlaceAsync(admission, userId, latitude, longitude, token);
+        }
+
+        /// <summary>Checks provider authority around HTTP after the durable metering transaction has released its locks.</summary>
+        private async Task<ReverseGeocodingResult> EnrichAdmittedPlaceAsync(PersonalProviderAdmission admission,
+            string userId, double latitude, double longitude, CancellationToken cancellationToken)
+        {
+            var contactGate = _contactGate ?? throw new InvalidOperationException("Provider admission requires the scoped contact gate.");
             if (!admission.Succeeded) return ReverseGeocodingResult.Unavailable(MapAdmission(admission.Category));
             var authority = admission.Authority!;
-            if (!await _contactGate.IsCurrentAsync(authority, cancellationToken))
+            if (!await contactGate.IsCurrentAsync(authority, cancellationToken))
                 return ReverseGeocodingResult.Unavailable(ReverseGeocodingCategory.StaleAuthority);
             ReverseGeocodingResult result;
             try
@@ -224,7 +250,7 @@ namespace Wayfarer.Parsers
             if (result.Category == ReverseGeocodingCategory.Authorization && authority.ProviderKey == "mapbox")
                 await RecordMapboxAuthorizationFailureAsync(userId, cancellationToken);
             if (!result.Succeeded) return result with { Authority = authority };
-            if (!await _contactGate.IsCurrentAsync(authority, cancellationToken))
+            if (!await contactGate.IsCurrentAsync(authority, cancellationToken))
                 return ReverseGeocodingResult.Unavailable(ReverseGeocodingCategory.StaleAuthority);
             return result with { Authority = authority };
         }

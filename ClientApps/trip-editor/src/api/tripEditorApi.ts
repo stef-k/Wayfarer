@@ -1,3 +1,6 @@
+import { dependentRefusal, dependentSegmentSuccess, sendDependent } from '../recovery/dependentDispatch';
+import { acceptDispatchVersion, dispatchHeader, findStructureRoute } from '../recovery/structureRoutes';
+import { sendStructureMutation } from '../recovery/structureMutation';
 import type { RegionCreationRequest, PlaceCreationRequest } from './creationTypes';
 import type { PlaceStructureRequest, PlaceStructurePreview } from '../components/placeStructuralEditing';
 import type {
@@ -120,7 +123,9 @@ export const loadEditorState = async (endpoint: string): Promise<EditorTripState
     throw new Error(`Trip Editor API returned ${response.status}`);
   }
 
-  return (await response.json()) as EditorTripState;
+  const graph = (await response.json()) as EditorTripState;
+  acceptDispatchVersion(endpoint, graph.ownerId, graph.tripId, response.headers.get(dispatchHeader));
+  return graph;
 };
 
 /// Searches geocode results through the same-origin Trip Editor proxy only.
@@ -178,8 +183,8 @@ export const suggestTags = async (query: string, take: number): Promise<TagSugge
 export const createRegion = async (
   endpoint: string,
   antiforgeryToken: string,
-  request: RegionCreationRequest
-): Promise<EditorMutationResult<EditorRegion>> => sendMutation(`${endpoint}/regions/conditional`, 'POST', antiforgeryToken, request, 'region create');
+  request: RegionCreationRequest, localDraftId?: string
+): Promise<EditorMutationResult<EditorRegion>> => sendMutation(`${endpoint}/regions/conditional`, 'POST', antiforgeryToken, request, 'region create', undefined, false, localDraftId);
 
 /// Uses pinned originals; an unsupported server never receives a fallback PUT.
 export const updateRegion = async (
@@ -215,8 +220,8 @@ export const createPlace = async (
   endpoint: string,
   regionId: string,
   antiforgeryToken: string,
-  request: PlaceCreationRequest
-): Promise<EditorMutationResult<EditorPlace>> => sendMutation(`${endpoint}/regions/${regionId}/places/conditional`, 'POST', antiforgeryToken, request, 'place create');
+  request: PlaceCreationRequest, localDraftId?: string
+): Promise<EditorMutationResult<EditorPlace>> => sendMutation(`${endpoint}/regions/${regionId}/places/conditional`, 'POST', antiforgeryToken, request, 'place create', undefined, false, localDraftId);
 
 /// Updates or moves a place through the same-origin editor API.
 export const updatePlace = async (
@@ -257,8 +262,8 @@ export const createArea = async (
   endpoint: string,
   regionId: string,
   antiforgeryToken: string,
-  request: EditorAreaSaveRequest
-): Promise<EditorMutationResult<EditorArea>> => sendMutation(`${endpoint}/regions/${regionId}/areas`, 'POST', antiforgeryToken, request, 'area create');
+  request: { expected: { areas: { id: string; displayOrder: number | null }[] }; value: EditorAreaSaveRequest }, localDraftId?: string
+): Promise<EditorMutationResult<EditorArea>> => sendMutation(`${endpoint}/regions/${regionId}/areas`, 'POST', antiforgeryToken, request, 'area create', undefined, false, localDraftId);
 
 /// Updates only dirty Area fields using pinned originals; unsupported servers never receive a legacy fallback.
 export const updateArea = async (
@@ -273,8 +278,9 @@ export const deleteArea = async (
   endpoint: string,
   areaId: string,
   antiforgeryToken: string,
-  original?: { parentId: string; planning: import('../planning/planningTypes').PlanningAggregate | null }
-): Promise<EditorMutationResult<EditorAreaDeleteResult>> => sendMutation(`${endpoint}/areas/${areaId}`, 'DELETE', antiforgeryToken, original ? { expected: original, operation: 'clear' } : null, 'area delete');
+  confirmationToken: string
+): Promise<EditorMutationResult<EditorAreaDeleteResult>> =>
+  sendMutation(`${endpoint}/areas/${areaId}`, 'DELETE', antiforgeryToken, { confirmationToken }, 'area delete');
 
 /// Persists the complete area order for one normal region.
 export const orderAreas = async (
@@ -329,7 +335,8 @@ const sendMutation = async <TData>(
   request: unknown,
   label: string,
   confirmationToken?: string,
-  segmentConfirmation = false
+  segmentConfirmation = false,
+  localDraftId?: string
 ): Promise<EditorMutationResult<TData>> => {
   const headers: Record<string, string> = {
     Accept: 'application/json',
@@ -350,7 +357,22 @@ const sendMutation = async <TData>(
   }
 
   const publish = captureMutationPublication(url);
-  const response = await fetch(url, init);
+  const editor = /^(.+\/trips\/([^/]+)\/editor)\//iu.exec(url);
+  const route = editor && findStructureRoute(editor[1], editor[2], url, method);
+  if (editor && route) {
+    const result = await sendStructureMutation<TData>(editor[1], antiforgeryToken, route, request as object, localDraftId);
+    publish(result);
+    return result;
+  }
+  const dependent = editor ? sendDependent(editor[1], url, init) : null;
+  const reservation = dependent ? await dependent : null;
+  const response = reservation?.response ?? await fetch(url, init);
+  if (reservation && !response.ok) {
+    const problem: unknown = await response.clone().json().catch(() => null);
+    if (dependentRefusal(response, problem, method, url)) await reservation.complete();
+    if (response.status === 409 && (problem as { code?: string } | null)?.code === 'trip-write-upgrade-required')
+      throw new EditorMutationHttpError('Reload the editor before saving this Trip change.', 409);
+  }
   requireSession(response);
   if (response.status === 400) {
     throw new EditorValidationError((await response.json()) as ValidationProblemDetails);
@@ -378,6 +400,11 @@ const sendMutation = async <TData>(
   }
 
   const result = await response.json() as EditorMutationResult<TData>;
+  if (reservation) {
+    // The existing command owner reports its incomplete-acknowledgement error. Its reservation stays held.
+    if (!dependentSegmentSuccess(response, result, method, url)) return result;
+    await reservation.complete();
+  }
   publish(result);
   return result;
 };

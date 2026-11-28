@@ -22,7 +22,10 @@ public partial class TripsController
         budget.CancelAfter(TimeSpan.FromSeconds(30));
         try
         {
-            var response = await ReadTripSnapshotAsync(id, contexts, jsonOptions.Value, budget.Token, ownerPrivate: true);
+            var comparisons = Request.Query["contract"] is { Count: 1 } contract && contract[0] == TripStructureOwnerSnapshot.Contract;
+            if (comparisons) Response.Headers.CacheControl = "private, no-store";
+            var response = await ReadTripSnapshotAsync(id, contexts, jsonOptions.Value, budget.Token,
+                ownerPrivate: true, ownerComparisons: comparisons);
             budget.Token.ThrowIfCancellationRequested();
             return response;
         }
@@ -72,6 +75,7 @@ public sealed partial class TripEditorController
 
     /// <summary>Cookie/User/antiforgery planning save; private errors and successes bypass caches.</summary>
     [HttpPatch("planning/{kind}/{targetId:guid}")]
+    [RequireTripStructureDispatch]
     [ValidateAntiForgeryToken]
     [RequestSizeLimit(262144)]
     public async Task<IActionResult> PatchPlanning(Guid tripId, string kind, Guid targetId, CancellationToken cancellationToken)

@@ -10,7 +10,7 @@ public sealed partial class PlaceRegionLifecycleService
 {
     /// <summary>Applies prepared intent with existing scalar/enrichment and locked Segment reconciliation owners.</summary>
     private async Task<EditorMutationResult<object>> ApplyLockedPlaceStructureAsync(PlaceStructuralSnapshot snapshot,
-        PlaceStructuralRequest request, PlaceStructuralAddress? address, CancellationToken token)
+        PlaceStructuralRequest request, PlaceStructuralAddress? address, CancellationToken token, Action<bool>? captureApplied = null)
     {
         var tripId = snapshot.Trip.Id;
         var userId = snapshot.Trip.UserId;
@@ -66,7 +66,23 @@ public sealed partial class PlaceRegionLifecycleService
             foreach (var (_, vector) in orders)
                 for (var index = 0; index < vector.Length; index++) places[vector[index]].DisplayOrder = index + 1;
         }
-        // Explicit overload saves only the isolated operation tracker; current-safe freshness is in this same transaction.
+        // Protected no-ops compare the complete dependency base without writing freshness.
+        var changed = captureApplied == null || _dbContext.ChangeTracker.HasChanges();
+        captureApplied?.Invoke(changed);
+        if (changed) await SaveStructuralEffectsAsync(tripId, userId, token);
+        var reader = new TripEditorPlaceMutationReader(_dbContext, _confirmation.RegionDeletionAggregateTokens);
+        var changedIds = orders.Count > 0 ? orders.Values.SelectMany(v => v).Distinct().ToArray() : new[] { place!.Id };
+        var dtos = await reader.LoadPlaceDtosAsync(changedIds, tripId, userId, token);
+        var segments = await reader.LoadSegmentDtosAsync(changedSegments, tripId, userId, token);
+        var affectedSlices = await reader.BuildAffectedAsync(tripId, userId, dtos, orders.Keys.ToArray(), segments,
+            locationChanged ? await reader.LoadSegmentOrderAsync(tripId, userId, token) : null, locationChanged, token);
+        object data = request.Operation == "order" ? new EditorPlaceOrderResult(snapshot.Regions.Single().Id, orders.Values.Single())
+            : dtos.Single(p => p.Id == place!.Id);
+        return new(true, data, affectedSlices, EditorDeletedIdsDto.Empty, address?.Warnings ?? []) { Contract = "bd2-1" };
+    }
+    /// <summary>Saves only isolated operation changes and stamps the locked Trip monotonically.</summary>
+    private async Task SaveStructuralEffectsAsync(Guid tripId, string userId, CancellationToken token)
+    {
         await _dbContext.SaveChangesAsync(acceptAllChangesOnSuccess: true, cancellationToken: token);
         var now = DateTime.UtcNow;
         if (_dbContext.Database.IsRelational())
@@ -78,16 +94,8 @@ public sealed partial class PlaceRegionLifecycleService
             trip.UpdatedAt = trip.UpdatedAt > now ? trip.UpdatedAt : now;
             await _dbContext.SaveChangesAsync(acceptAllChangesOnSuccess: true, cancellationToken: token);
         }
-        var reader = new TripEditorPlaceMutationReader(_dbContext, _confirmation.RegionDeletionAggregateTokens);
-        var changedIds = orders.Count > 0 ? orders.Values.SelectMany(v => v).Distinct().ToArray() : new[] { place!.Id };
-        var dtos = await reader.LoadPlaceDtosAsync(changedIds, tripId, userId, token);
-        var segments = await reader.LoadSegmentDtosAsync(changedSegments, tripId, userId, token);
-        var affectedSlices = await reader.BuildAffectedAsync(tripId, userId, dtos, orders.Keys.ToArray(), segments,
-            locationChanged ? await reader.LoadSegmentOrderAsync(tripId, userId, token) : null, locationChanged, token);
-        object data = request.Operation == "order" ? new EditorPlaceOrderResult(snapshot.Regions.Single().Id, orders.Values.Single())
-            : dtos.Single(p => p.Id == place!.Id);
-        return new(true, data, affectedSlices, EditorDeletedIdsDto.Empty, address?.Warnings ?? []) { Contract = "bd2-1" };
     }
+
 }
 
 /// <summary>Frozen explicit Web enrichment result, including the existing provider fallback warning.</summary>

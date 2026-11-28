@@ -24,7 +24,7 @@ internal sealed class RegionOrderingService(ApplicationDbContext db, LifecycleDe
 
     /// <summary>Locks sorted Regions before Trip, rediscovers scope/authority, then writes normal orders and freshness atomically.</summary>
     internal async Task<EditorMutationResult<EditorRegionOrderResult>> ApplyAsync(Guid tripId, string userId, RegionOrderRequest request, bool web,
-        Func<CancellationToken, Task<bool>>? authority, CancellationToken token)
+        Func<CancellationToken, Task<bool>>? authority, CancellationToken token, bool protectedWrite = false)
     {
         if (db.ChangeTracker.Entries().Any(e => e.State is EntityState.Added or EntityState.Modified or EntityState.Deleted))
             throw new InvalidOperationException("Region ordering cannot save unrelated tracked changes.");
@@ -33,7 +33,8 @@ internal sealed class RegionOrderingService(ApplicationDbContext db, LifecycleDe
         if (!request.Reviewed || string.IsNullOrWhiteSpace(request.ConditionToken))
             throw new TripMetadataMutationRejected(409, "mutation-review-required", "Keep your order and review its original conditions before applying.");
         if (!confirmation.MatchesRegionOrder(request.ConditionToken, userId, tripId, request.Intent(web), Fingerprint(candidates))) throw Stale();
-        await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, token);
+        // Protected ordering commits its effects and historical vector together in the outer transaction.
+        await using var transaction = protectedWrite ? null : await db.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, token);
         var commitStarted = false;
         try
         {
@@ -50,24 +51,28 @@ internal sealed class RegionOrderingService(ApplicationDbContext db, LifecycleDe
             Compare(request, current);
             if (!confirmation.MatchesRegionOrder(request.ConditionToken, userId, tripId, request.Intent(web), Fingerprint(current))) throw Stale();
             var normal = current.Where(r => !RegionOrderRequest.IsCanonical(r)).ToDictionary(r => r.Id);
+            var changed = false;
             for (var index = 0; index < request.RegionIds.Length; index++)
             {
                 var region = normal[request.RegionIds[index]];
                 var order = index + 1;
+                if (protectedWrite && region.DisplayOrder == order) continue;
+                changed = true;
                 await db.Regions.Where(r => r.Id == region.Id).ExecuteUpdateAsync(s => s.SetProperty(r => r.DisplayOrder, order), token);
                 region.DisplayOrder = order;
             }
             var now = DateTime.UtcNow;
-            await db.Trips.Where(t => t.Id == tripId).ExecuteUpdateAsync(s => s.SetProperty(t => t.UpdatedAt, t => t.UpdatedAt > now ? t.UpdatedAt : now), token);
+            if (!protectedWrite || changed)
+                await db.Trips.Where(t => t.Id == tripId).ExecuteUpdateAsync(s => s.SetProperty(t => t.UpdatedAt, t => t.UpdatedAt > now ? t.UpdatedAt : now), token);
             var orderIds = current.OrderBy(r => r.DisplayOrder).ThenBy(r => r.Id).Select(r => r.Id).ToArray();
             var affected = new EditorAffectedSlicesDto(null, normal.Values.Select(EditorTripStateMapper.ToRegion).ToArray(), orderIds,
                 [], new Dictionary<Guid, IReadOnlyList<Guid>>(), [], new Dictionary<Guid, IReadOnlyList<Guid>>(), [], null, [], null, null, null);
             var result = new EditorMutationResult<EditorRegionOrderResult>(true, new(tripId, orderIds), affected, EditorDeletedIdsDto.Empty, []) { Contract = "bd2-1" };
             commitStarted = true;
-            await transaction.CommitAsync(token);
+            if (transaction != null) await transaction.CommitAsync(token);
             return result;
         }
-        catch (Exception original)
+        catch (Exception original) when (transaction != null)
         {
             try { await transaction.RollbackAsync(CancellationToken.None); }
             catch (Exception rollback) { throw new AggregateException("Region ordering failed and rollback could not be confirmed.", original, rollback); }

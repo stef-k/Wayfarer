@@ -7,30 +7,41 @@ namespace Wayfarer.Services.TripMetadataReceipts;
 
 /// <summary>Issues and recovers permits under the current adapter and continuous database authority.</summary>
 internal sealed class TripMetadataOperations(ApplicationDbContext db, TripMetadataProofs proofs, string subject, bool web,
-    Func<ApplicationUser, CancellationToken, Task<bool>>? revalidateCredential, string kind = TripMetadataIdentity.OperationKind)
+    Func<ApplicationUser, CancellationToken, Task<bool>>? revalidateCredential, string kind = TripMetadataIdentity.OperationKind,
+    TripReceiptTarget? target = null)
 {
     private readonly TripMetadataReceiptStore _store = new(db);
     private string Adapter => web ? "web" : "bearer";
 
     /// <summary>Authenticates a new edit without creating a durable execution record or applying effects.</summary>
-    internal async Task<Dictionary<string, object?>> IssueAsync(Guid tripId, Stream body, CancellationToken token, Action<string>? validateTransport = null)
+    internal async Task<Dictionary<string, object?>> IssueAsync(Guid tripId, Stream body, CancellationToken token, Action<string>? validateTransport = null,
+        Func<CancellationToken, Task>? requireEligibility = null)
     {
         var (contract, digest) = await ReadIssuanceAsync(body, token);
         validateTransport?.Invoke(contract);
         await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, token);
-        var owned = await db.Trips.FromSqlInterpolated($"""
-            SELECT * FROM public."Trips" WHERE "Id" = {tripId} AND "UserId" = {subject} FOR SHARE
-            """).AnyAsync(token);
-        if (!owned) throw TripMetadataMutationService.MissingTrip();
+        if (requireEligibility != null)
+            await requireEligibility(token);
+        else
+            await RequireOwnedTripAsync(tripId, token);
         await RequireActiveAsync(db, subject, revalidateCredential, token);
         var sample = await _store.AdmissionAsync(token);
         if (sample.Now < sample.Cutoff) throw Unavailable();
         var identity = new TripMetadataIdentity(contract, subject, Adapter, kind,
-            tripId, digest, Guid.NewGuid(), sample.Now.AddMinutes(15));
+            tripId, digest, Guid.NewGuid(), sample.Now.AddMinutes(15)) { Target = target };
         var envelope = identity.Envelope();
         envelope.Add("proof", proofs.Protect(identity, sample.Authority));
         await transaction.CommitAsync(token);
         return envelope;
+    }
+
+    /// <summary>Locks the owned Trip during ordinary metadata and control issuance.</summary>
+    private async Task RequireOwnedTripAsync(Guid tripId, CancellationToken token)
+    {
+        var owned = await db.Trips.FromSqlInterpolated($"""
+            SELECT * FROM public."Trips" WHERE "Id" = {tripId} AND "UserId" = {subject} FOR SHARE
+            """).AnyAsync(token);
+        if (!owned) throw TripMetadataMutationService.MissingTrip();
     }
 
     /// <summary>Checks exact issuance member names, cardinality and digest spelling.</summary>
@@ -51,9 +62,10 @@ internal sealed class TripMetadataOperations(ApplicationDbContext db, TripMetada
         throw new TripMetadataMutationRejected(400, "mutation-request-invalid", "A supported Trip save contract and request digest are required.");
     }
 
-    /// <summary>Only metadata has a version-one transport.</summary>
-    private bool Supports(string contract) => contract == TripMetadataIdentity.Version2
-        || kind == TripMetadataIdentity.OperationKind && contract == TripMetadataIdentity.Version;
+    /// <summary>Typed writers use their own contract and earlier writers retain their original transport versions.</summary>
+    private bool Supports(string contract) => target != null
+        ? contract == TripMetadataIdentity.StructureVersion
+        : contract == TripMetadataIdentity.Version2 || kind == TripMetadataIdentity.OperationKind && contract == TripMetadataIdentity.Version;
 
     /// <summary>Reads the active authority before accepting any proof and binds it to this authenticated route.</summary>
     internal async Task<TripMetadataPermit> VerifyAsync(Guid tripId, string proof, Guid? operationId, CancellationToken token)
@@ -61,7 +73,7 @@ internal sealed class TripMetadataOperations(ApplicationDbContext db, TripMetada
         var sample = await _store.AdmissionAsync(token);
         var identity = proofs.Verify(proof, sample.Authority);
         if (identity.SubjectId != subject || identity.Adapter != Adapter || identity.TripId != tripId
-            || identity.Kind != kind || !Supports(identity.Contract) || operationId.HasValue && identity.OperationId != operationId)
+            || identity.Kind != kind || identity.Target != target || !Supports(identity.Contract) || operationId.HasValue && identity.OperationId != operationId)
             throw new TripMetadataMutationRejected(409, "trip-attempt-mismatch", "The Trip save proof does not match this request.");
         return new(identity, sample.Authority);
     }
@@ -97,7 +109,7 @@ internal sealed class TripMetadataOperations(ApplicationDbContext db, TripMetada
     }
 
     /// <summary>Only committed cutoff coverage excludes future effects without retained history.</summary>
-    private static TripMetadataEvidence Observation(bool fenced, TripMetadataAdmission sample, DateTime deadline)
+    internal static TripMetadataEvidence Observation(bool fenced, TripMetadataAdmission sample, DateTime deadline)
     {
         if (!fenced) return new("unresolved", "unknown", null) { ObservedAtUtc = sample.Now, Code = "trip-attempt-in-flight" };
         if (sample.Cutoff >= deadline) return new("retired", "unknown", false) { ObservedAtUtc = sample.Now };

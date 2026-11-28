@@ -5,11 +5,11 @@ using Wayfarer.Util;
 namespace Wayfarer.Models.Dtos;
 
 /// <summary>Strict Place scalar intent and original parent evidence, independent of display defaults.</summary>
-internal sealed record PlaceConditionalRequest(Guid RegionId, Dictionary<string, string?> Expected, Dictionary<string, string?> Changes)
+internal sealed record PlaceConditionalRequest(Guid RegionId, Dictionary<string, string?> Expected, Dictionary<string, string?> Changes, PlaceAddressOriginal? AddressOriginal = null)
 {
     /// <summary>Rejects ambiguous/structural JSON and validates every selected replacement before entering the transaction.</summary>
     internal static async Task<PlaceConditionalRequest> ReadAsync(Stream body, bool web, IReadOnlySet<string> icons,
-        IReadOnlySet<string> colors, CancellationToken token)
+        IReadOnlySet<string> colors, CancellationToken token, bool protectedWrite = false)
     {
         try
         {
@@ -18,12 +18,15 @@ internal sealed record PlaceConditionalRequest(Guid RegionId, Dictionary<string,
             if (!root.TryGetValue("expected", out var expected) || !root.TryGetValue("changes", out var changes))
                 throw Invalid("request", "Both expected and changes objects are required.");
             string[] allowed = ["name", web ? "notesHtml" : "notes", "iconName", "markerColor"];
-            var originals = Fields(expected, [.. allowed, "regionId"]);
-            var desired = Fields(changes, allowed);
+            var manualAddress = protectedWrite && !web;
+            var originals = Fields(expected, manualAddress
+                ? [.. allowed, "regionId", "address", "location", "addressEnrichment"] : [.. allowed, "regionId"]);
+            var desired = Fields(changes, manualAddress ? [.. allowed, "address"] : allowed);
             if (!originals.Remove("regionId", out var parent) || parent.ValueKind != JsonValueKind.String
                 || !parent.TryGetGuid(out var regionId) || regionId == Guid.Empty)
                 throw Invalid("expected.regionId", "The original Region ID is required.");
-            var parsed = new PlaceConditionalRequest(regionId, [], []);
+            var address = ReadAddressOriginal(originals, desired.ContainsKey("address"));
+            var parsed = new PlaceConditionalRequest(regionId, [], [], address);
             foreach (var (key, value) in desired)
             {
                 var canonical = key == "notesHtml" ? "notes" : key;
@@ -43,6 +46,17 @@ internal sealed record PlaceConditionalRequest(Guid RegionId, Dictionary<string,
         }
         catch (JsonException) { throw Invalid("request", "The request must be valid JSON."); }
         catch (InvalidOperationException) { throw Invalid("request", "The request must contain valid Unicode text."); }
+    }
+
+    /// <summary>Requires location and enrichment originals exactly when manual Address is selected.</summary>
+    private static PlaceAddressOriginal? ReadAddressOriginal(Dictionary<string, JsonElement> originals, bool selected)
+    {
+        var hasLocation = originals.Remove("location", out var location);
+        var hasEnrichment = originals.Remove("addressEnrichment", out var enrichment);
+        if (!selected && !hasLocation && !hasEnrichment) return null;
+        if (!selected || !hasLocation || !hasEnrichment)
+            throw Invalid("expected", "Address changes require the exact location and enrichment originals.");
+        return PlaceAddressOriginal.Parse(location, enrichment);
     }
 
     /// <summary>Checks exact spelling and uniqueness at each accepted object boundary.</summary>
@@ -74,6 +88,11 @@ internal sealed record PlaceConditionalRequest(Guid RegionId, Dictionary<string,
             // PostgreSQL text cannot store U+0000; reject before any SQL mutation is attempted.
             if (text.Contains('\0')) throw Invalid(key, "Name must not contain null characters.");
             return desired ? text.Trim() : text;
+        }
+        if (key == "address")
+        {
+            if (desired && (text == null || text.Contains('\0'))) throw Invalid(key, "Address must be a string without null characters.");
+            return desired ? text?.Trim() : text;
         }
         if (desired && (text == null || !(key == "iconName" ? icons : colors).Contains(text)))
             throw Invalid(key, "The value must be one of the existing editor options.");

@@ -13,13 +13,15 @@ internal sealed class RegionConditionalMutationService(ApplicationDbContext db)
 {
     /// <summary>Compares fresh originals after all waits, writes only requested scalars, and stamps the parent atomically.</summary>
     internal async Task<RegionConditionalResult> ApplyAsync(Guid tripId, Guid regionId, string userId, Stream body, bool web,
-        Func<CancellationToken, Task<bool>>? revalidateBearer, CancellationToken token)
+        Func<CancellationToken, Task<bool>>? revalidateBearer, CancellationToken token, bool protectedWrite = false)
     {
         if (!await db.Regions.AsNoTracking().AnyAsync(r => r.Id == regionId && r.TripId == tripId
                 && r.UserId == userId && r.Trip.UserId == userId, token))
             throw Unavailable();
-        var request = await RegionConditionalRequest.ReadAsync(body, web, token);
-        await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, token);
+        var request = await RegionConditionalRequest.ReadAsync(body, web, token, protectedWrite);
+        // Protected callers already hold the account/operation fence in their outer transaction.
+        await using var transaction = protectedWrite ? null
+            : await db.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, token);
         var commitStarted = false;
         try
         {
@@ -38,7 +40,9 @@ internal sealed class RegionConditionalMutationService(ApplicationDbContext db)
             if (active.Count == 0 || revalidateBearer != null && !await revalidateBearer(token))
                 throw new TripMetadataMutationRejected(401, "mutation-authority-unavailable", "Authentication is no longer valid.");
             var reserved = string.Equals(region.Name, "Unassigned Places", StringComparison.OrdinalIgnoreCase);
-            if (reserved && (web || request.Changes.Keys.Any(key => key != "notes")))
+            // Only the exact canonical Region permits a protected bearer center change.
+            var canonicalCenter = protectedWrite && !web && region.Name == "Unassigned Places";
+            if (reserved && (web || request.Changes.Keys.Any(key => key != "notes" && !(canonicalCenter && key == "center"))))
                 throw new TripMetadataMutationRejected(403, "mutation-region-protected", "The reserved Region cannot be edited by this operation.");
             var current = Values(region);
             if (request.Expected.Any(field => !Equals(field.Value, current[field.Key])))
@@ -53,10 +57,10 @@ internal sealed class RegionConditionalMutationService(ApplicationDbContext db)
                     .ExecuteUpdateAsync(s => s.SetProperty(t => t.UpdatedAt, t => t.UpdatedAt > now ? t.UpdatedAt : now), token);
             }
             commitStarted = true;
-            await transaction.CommitAsync(token);
+            if (transaction != null) await transaction.CommitAsync(token);
             return new(region, applied);
         }
-        catch (Exception original)
+        catch (Exception original) when (transaction != null)
         {
             try { await transaction.RollbackAsync(CancellationToken.None); }
             catch (Exception rollback) { throw new AggregateException("Region edit failed and rollback also failed.", original, rollback); }

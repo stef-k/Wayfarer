@@ -44,18 +44,7 @@ public sealed class TripEditorRegionMutationService
         if (!await _dbContext.Trips.AsNoTracking().AnyAsync(t => t.Id == tripId && t.UserId == userId, cancellationToken))
             return EditorRegionMutationOutcome<EditorMutationResult<EditorRegionDto>>.NotFound();
         var request = await CreationConditionalRequest.ReadAsync(requestBody, false, cancellationToken);
-        CreationConditionalRequest.ValidateValue(request.Value, false, true);
-        if (!EditorRegionRequestParser.TryParseSave(request.Value, out var update, out var errors))
-            throw new TripMetadataMutationRejected(400, "mutation-request-invalid", "Check the creation fields.", errors);
-        var region = new Region
-        {
-            TripId = tripId,
-            UserId = userId,
-            Name = update.Name.Trim(),
-            Notes = update.NotesHtml ?? string.Empty,
-            CoverImageUrl = NormalizeOptionalUrl(update.CoverImage?.RawUrl),
-            Center = ToPoint(update.Center)
-        };
+        var region = BuildCreationRegion(request);
 
         return await new CheckedCreationService(_dbContext).RegionAsync(tripId, userId, request, region, (created, regionOrder) =>
         {
@@ -78,6 +67,21 @@ public sealed class TripEditorRegionMutationService
             return Task.FromResult(EditorRegionMutationOutcome<EditorMutationResult<EditorRegionDto>>.Succeeded(
                 new EditorMutationResult<EditorRegionDto>(true, dto, affected, EditorDeletedIdsDto.Empty, Array.Empty<EditorWarningDto>()) { Contract = "bd2-1" }));
         }, null, cancellationToken);
+    }
+
+    /// <summary>Uses the Editor's existing creation validation and persistence defaults.</summary>
+    internal static Region BuildCreationRegion(CreationConditionalRequest request)
+    {
+        CreationConditionalRequest.ValidateValue(request.Value, false, true);
+        if (!EditorRegionRequestParser.TryParseSave(request.Value, out var update, out var errors))
+            throw new TripMetadataMutationRejected(400, "mutation-request-invalid", "Check the creation fields.", errors);
+        return new Region
+        {
+            Name = update.Name.Trim(),
+            Notes = update.NotesHtml ?? string.Empty,
+            CoverImageUrl = NormalizeOptionalUrl(update.CoverImage?.RawUrl),
+            Center = ToPoint(update.Center)
+        };
     }
 
     /// <summary>

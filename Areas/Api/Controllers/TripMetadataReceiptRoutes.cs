@@ -65,10 +65,16 @@ internal sealed class TripMetadataReceiptRoutes(HttpRequest request, Application
         if (string.IsNullOrWhiteSpace(account) || context.User.Identity?.IsAuthenticated != true)
             return Task.FromResult<IActionResult>(new UnauthorizedResult());
         if (!context.User.IsInRole("User")) return Task.FromResult<IActionResult>(new ForbidResult());
+        return dispatch(new(context.Request, db, account, true, CookieCredential(context), kind));
+    }
+
+    /// <summary>Captures the configured cookie stamp for ordinal comparison against the locked account row.</summary>
+    internal static Func<ApplicationUser, CancellationToken, Task<bool>> CookieCredential(HttpContext context)
+    {
         var claim = context.RequestServices.GetRequiredService<IOptions<IdentityOptions>>().Value.ClaimsIdentity.SecurityStampClaimType;
         var stamp = context.User.FindFirst(claim)?.Value;
-        return dispatch(new(context.Request, db, account, true, (user, _) =>
-            Task.FromResult(!string.IsNullOrEmpty(stamp) && string.Equals(stamp, user.SecurityStamp, StringComparison.Ordinal)), kind));
+        return (user, _) => Task.FromResult(!string.IsNullOrEmpty(stamp)
+            && string.Equals(stamp, user.SecurityStamp, StringComparison.Ordinal));
     }
 
     /// <summary>Distinguishes a stale Web invocation from a marked request missing its proof.</summary>
