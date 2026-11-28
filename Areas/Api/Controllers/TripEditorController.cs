@@ -77,7 +77,6 @@ public sealed partial class TripEditorController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> GetEditorState(Guid tripId, CancellationToken cancellationToken)
     {
-        Response.Headers.CacheControl = "private, no-store";
         var userId = User?.FindFirstValue(ClaimTypes.NameIdentifier);
         if (string.IsNullOrWhiteSpace(userId))
         {
@@ -89,6 +88,7 @@ public sealed partial class TripEditorController : ControllerBase
             return StatusCode(StatusCodes.Status403Forbidden);
         }
 
+        Response.Headers.CacheControl = "private, no-store";
         await using var snapshot = _dbContext.Database.IsRelational()
             ? await _dbContext.Database.BeginTransactionAsync(System.Data.IsolationLevel.RepeatableRead, cancellationToken) : null;
         var trip = await _dbContext.Trips
