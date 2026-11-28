@@ -62,7 +62,11 @@ public sealed class AntiforgeryDescriptorTests : TestBase
         Api.TripEditor.ExecuteEditorSharing Api.TripEditor.IssueEditorSharing
         Api.TripEditor.PatchConditionalMetadata Api.TripEditor.PatchConditionalRegion Api.TripEditor.PatchConditionalArea
         Api.TripEditor.PatchConditionalSegmentNotes Api.TripEditor.PatchConditionalPlace Api.TripEditor.PatchPlanning
-        Api.TripEditor.ProtectedRegionFields Api.TripEditor.ProtectedPlaceFields Api.TripEditor.ProtectedAreaFields
+        Api.TripEditor.ProtectedPlaceCreation Api.TripEditor.ProtectedPlaceSave Api.TripEditor.ProtectedPlaceOrder
+        Api.TripEditor.ProtectedRegionDeletion Api.TripEditor.ProtectedPlaceDeletion
+        Api.TripEditor.ProtectedRegionCreation Api.TripEditor.ProtectedRegionOrder
+        Api.TripEditor.ProtectedAreaOrder Api.TripEditor.ProtectedAreaDeletion Api.TripEditor.PreviewProtectedAreaDeletion
+        Api.TripEditor.ProtectedAreaCreation Api.TripEditor.ProtectedRegionFields Api.TripEditor.ProtectedPlaceFields Api.TripEditor.ProtectedAreaFields
         Api.TripEditor.ProtectedAreaGeometryFields Api.TripEditor.CheckPlanning Api.TripEditor.PreviewRegionDeletion Api.TripEditor.ConfirmRegionDeletion
         Api.TripEditor.PreviewPlaceDeletion Api.TripEditor.ConfirmPlaceDeletion
         Api.TripEditor.PreparePlaceUpdate Api.TripEditor.PrepareEditorPlaceOrder
@@ -79,6 +83,10 @@ public sealed class AntiforgeryDescriptorTests : TestBase
     // These routes have their own credential authority; cookie tokens must not become a mobile requirement.
     // KeyStatus is a read-only POST under the same active bearer authority as Location ingestion.
     private const string BearerActions = """
+        Api.Trips.ProtectedPlaceCoordinates Api.Trips.ProtectedPlaceMove Api.Trips.ProtectedPlaceOrder
+        Api.Trips.ProtectedRegionDeletion Api.Trips.ProtectedPlaceDeletion
+        Api.Trips.ProtectedRegionCreation Api.Trips.ProtectedRegionOrder Api.Trips.ProtectedPlaceCreation
+        Api.Trips.ProtectedAreaOrder Api.Trips.ProtectedAreaDeletion Api.Trips.PreviewProtectedAreaDeletion
         Api.Trips.ProtectedRegionFields Api.Trips.ProtectedPlaceFields Api.Trips.ProtectedAreaFields
         Api.Location.KeyStatus
         Api.MobileLocationImports.Put Api.MobileLocationImports.Start Api.MobileLocationImports.Stop Api.MobileLocationImports.Delete

@@ -5,14 +5,28 @@ import type { EditorMutationResult, EditorArea, EditorRegion, Guid } from '../ty
 import { buildAreaCreateTarget, buildAreaEditTarget } from './regionPlaceEditorTargets';
 import { buildAreaRequest, emptyAreaDraft } from './regionPlaceDrafts';
 import { beginAreaPolygonMapWork } from './areaPolygonMapWork';
+import { saveStructureIntent } from '../recovery/structureMutation';
+import { areaMaterials, prepareAreaDeletion } from '../recovery/structureOwner';
 import { confirm } from '../composables/useConfirmDialog';
 
 /// Coordinates area-specific editor actions while RegionManager owns shared draft state.
 export function useAreaEditorActions(context: any) {
   const areaDraft = context.areaDraftState.draft;
+  let creationBase: ReturnType<typeof areaMaterials> | null = null;
   let editorAlive = true;
   let savingSession: number | null = null;
   onUnmounted(() => { editorAlive = false; });
+  /** Keeps a newer polygon or scalar draft when the earlier Area request is still outstanding. */
+  watch(() => {
+    if (!areaDraft.id) return null;
+    try {
+      const payload = context.areaDraftState.request();
+      return Object.keys(payload.changes).length ? JSON.stringify(payload) : null;
+    } catch { return null; }
+  }, frozen => {
+    if (frozen && areaDraft.id) void saveStructureIntent(context.props.editorEndpoint, 'area-fields',
+      { type: 'area', id: areaDraft.id }, JSON.parse(frozen)).catch(() => undefined);
+  });
   // Explicit discard retires only this Area attempt's UI lock; it says nothing about its server outcome.
   watch(() => context.areaDraftState.session(), () => {
     if (savingSession === null) return;
@@ -28,6 +42,7 @@ export function useAreaEditorActions(context: any) {
 
     context.clearRegionPlaceDrafts();
     context.areaDraftState.reset(null);
+    creationBase = areaMaterials(context.props.state, region.id);
     Object.assign(areaDraft, emptyAreaDraft(region.id, context.props.state.options.areaDefaults.fillHex));
     areaDraft.name = context.props.state.options.areaDefaults.name || 'Area';
     context.clearRegionPlaceBaselines();
@@ -88,9 +103,12 @@ export function useAreaEditorActions(context: any) {
       if (areaId && Object.keys(submitted.changes).length === 0) return;
       context.areaDraftState.pending.value = Boolean(areaId);
       dispatched = true;
+      if (!areaId && !creationBase) throw new Error('Original Area membership is unavailable.');
       const result = areaId
         ? await updateArea(context.props.editorEndpoint, areaId, context.props.antiforgeryToken, submitted)
-        : await createArea(context.props.editorEndpoint, regionId, context.props.antiforgeryToken, submitted.changes);
+        : await createArea(context.props.editorEndpoint, regionId, context.props.antiforgeryToken, {
+          expected: { areas: creationBase!.map(({ id, displayOrder }) => ({ id, displayOrder })) }, value: submitted.changes
+        });
       // Retired replies cannot publish older affected slices over a newer editing session.
       if (!editorAlive || session !== context.areaDraftState.session()) return;
       if (!result.success) throw new Error('The Area save was not acknowledged. Keep your draft and review the unknown outcome.');
@@ -121,21 +139,21 @@ export function useAreaEditorActions(context: any) {
       return;
     }
 
-    if (!(await confirm({
-      title: message('Editor.DeleteAreaQuestion', 'Delete area?'),
-      message: message('Editor.DeleteAreaPlanning', 'Delete this area and its private planning?'),
-      confirmLabel: message('Editor.Delete', 'Delete'),
-      cancelLabel: message('Editor.KeepArea', 'Keep area'),
-      variant: 'danger'
-    }))) {
-      return;
-    }
-
+    const area = context.activeArea.value;
+    const deletedTarget = context.activeAreaTarget.value;
+    const session = context.areaDraftState.session();
     context.isSaving.value = true;
     context.resetFeedback();
     try {
-      const deletedTarget = context.activeAreaTarget.value;
-      const result = await deleteArea(context.props.editorEndpoint, context.activeArea.value.id, context.props.antiforgeryToken, { parentId: context.activeArea.value.regionId, planning: context.activeArea.value.planning ?? null });
+      const preview = await prepareAreaDeletion(context.props.editorEndpoint, context.props.antiforgeryToken, context.props.state, area.id);
+      if (!(await confirm({
+        title: message('Editor.DeleteAreaQuestion', 'Delete area?'),
+        message: preview.hasPlanning ? message('Editor.DeleteAreaPlanning', 'Delete this area and its private planning?') : preview.name,
+        confirmLabel: message('Editor.Delete', 'Delete'),
+        cancelLabel: message('Editor.KeepArea', 'Keep area'), variant: 'danger'
+      })) || !editorAlive || session !== context.areaDraftState.session()) return;
+      const result = await deleteArea(context.props.editorEndpoint, area.id, context.props.antiforgeryToken, preview.confirmationToken);
+      if (!editorAlive || session !== context.areaDraftState.session()) return;
       context.emit('mutationApplied', result as EditorMutationResult<unknown>);
       context.areaDraftState.reset(null);
       context.areaCreateBaselineRequest.value = null;
@@ -154,6 +172,10 @@ export function useAreaEditorActions(context: any) {
       return;
     }
 
+    let originals: ReturnType<typeof areaMaterials>;
+    try { originals = areaMaterials(context.props.state, regionId); }
+    catch (error) { context.applyError(error, 'Area order held.'); await context.restoreRegionOrder(previousIds); return; }
+
     if (context.isDirty.value && !(await context.confirmDiscard(message('Editor.DiscardBeforeAreaReorder', 'Discard unsaved draft changes before reordering areas?')))) {
       await context.restoreRegionOrder(previousIds);
       return;
@@ -171,7 +193,7 @@ export function useAreaEditorActions(context: any) {
     context.isOrdering.value = true;
     context.resetFeedback();
     try {
-      const result = await orderAreas(context.props.editorEndpoint, regionId, context.props.antiforgeryToken, { areaIds: ids });
+      const result = await orderAreas(context.props.editorEndpoint, regionId, context.props.antiforgeryToken, { expected: { areas: originals }, areaIds: ids });
       context.emit('mutationApplied', result as EditorMutationResult<unknown>);
       context.markSaved();
     } catch (error) {

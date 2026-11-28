@@ -12,7 +12,7 @@ internal sealed class CheckedCreationService(ApplicationDbContext db)
 {
     /// <summary>Appends one server-identified Region without normalizing historical sibling orders.</summary>
     internal Task<T> RegionAsync<T>(Guid tripId, string userId, CreationConditionalRequest request, Region region,
-        Func<Region, IReadOnlyList<Guid>, Task<T>> project, Func<CancellationToken, Task<bool>>? authority, CancellationToken token) =>
+        Func<Region, IReadOnlyList<Guid>, Task<T>> project, Func<CancellationToken, Task<bool>>? authority, CancellationToken token, bool protectedWrite = false) =>
         ExecuteAsync(tripId, userId, request, false, async regions =>
         {
             CompareRegions(request, regions, userId);
@@ -23,11 +23,11 @@ internal sealed class CheckedCreationService(ApplicationDbContext db)
             db.Regions.Add(region);
             await db.SaveChangesAsync(token);
             return await project(region, regions.Append(region).OrderBy(r => r.DisplayOrder).ThenBy(r => r.Id).Select(r => r.Id).ToArray());
-        }, authority, token);
+        }, authority, token, protectedWrite);
 
     /// <summary>Appends a Place and, only against accepted absence, stages the canonical fallback in the same transaction.</summary>
     internal Task<T> PlaceAsync<T>(Guid tripId, string userId, CreationConditionalRequest request, Place place,
-        Func<Place, Task<T>> project, Func<CancellationToken, Task<bool>>? authority, CancellationToken token) =>
+        Func<Place, Task<T>> project, Func<CancellationToken, Task<bool>>? authority, CancellationToken token, bool protectedWrite = false) =>
         ExecuteAsync(tripId, userId, request, true, async regions =>
         {
             Region destination;
@@ -55,15 +55,16 @@ internal sealed class CheckedCreationService(ApplicationDbContext db)
             db.Places.Add(place);
             await db.SaveChangesAsync(token);
             return await project(place);
-        }, authority, token);
+        }, authority, token, protectedWrite);
 
     /// <summary>Locks children before Regions before Trip, with serializable phantom detection and no internal replay.</summary>
     private async Task<T> ExecuteAsync<T>(Guid tripId, string userId, CreationConditionalRequest request, bool place,
-        Func<Region[], Task<T>> append, Func<CancellationToken, Task<bool>>? authority, CancellationToken token)
+        Func<Region[], Task<T>> append, Func<CancellationToken, Task<bool>>? authority, CancellationToken token, bool protectedWrite)
     {
         if (db.ChangeTracker.Entries().Any(e => e.State is EntityState.Added or EntityState.Modified or EntityState.Deleted))
             throw new InvalidOperationException("Creation cannot save unrelated tracked changes.");
-        await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, token);
+        // Protected creates hold a freshly fenced Serializable transaction from dispatch through receipt insertion.
+        await using var transaction = protectedWrite ? null : await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, token);
         var commitStarted = false;
         var before = db.ChangeTracker.Entries().Select(e => e.Entity).ToHashSet(ReferenceEqualityComparer.Instance);
         try
@@ -91,10 +92,10 @@ internal sealed class CheckedCreationService(ApplicationDbContext db)
             var freshness = trip.UpdatedAt > DateTime.UtcNow ? trip.UpdatedAt : DateTime.UtcNow;
             await db.Trips.Where(t => t.Id == tripId).ExecuteUpdateAsync(s => s.SetProperty(t => t.UpdatedAt, t => t.UpdatedAt > freshness ? t.UpdatedAt : freshness), token);
             commitStarted = true;
-            await transaction.CommitAsync(token);
+            if (transaction != null) await transaction.CommitAsync(token);
             return result;
         }
-        catch (Exception original)
+        catch (Exception original) when (transaction != null)
         {
             try { await transaction.RollbackAsync(CancellationToken.None); }
             catch (Exception rollback) { throw new AggregateException("Creation failed and rollback could not be confirmed.", original, rollback); }
@@ -122,7 +123,7 @@ internal sealed class CheckedCreationService(ApplicationDbContext db)
     }
 
     /// <summary>Reuses the exact canonical uniqueness recovery boundary, but never adopts a concurrent winner as an original.</summary>
-    private static bool IsUnappliedContention(Exception failure)
+    internal static bool IsUnappliedContention(Exception failure)
     {
         for (var cause = failure; cause != null; cause = cause.InnerException)
             if (cause is PostgresException { SqlState: PostgresErrorCodes.SerializationFailure or PostgresErrorCodes.DeadlockDetected }

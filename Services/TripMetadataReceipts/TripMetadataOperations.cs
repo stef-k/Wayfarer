@@ -109,7 +109,7 @@ internal sealed class TripMetadataOperations(ApplicationDbContext db, TripMetada
     }
 
     /// <summary>Only committed cutoff coverage excludes future effects without retained history.</summary>
-    private static TripMetadataEvidence Observation(bool fenced, TripMetadataAdmission sample, DateTime deadline)
+    internal static TripMetadataEvidence Observation(bool fenced, TripMetadataAdmission sample, DateTime deadline)
     {
         if (!fenced) return new("unresolved", "unknown", null) { ObservedAtUtc = sample.Now, Code = "trip-attempt-in-flight" };
         if (sample.Cutoff >= deadline) return new("retired", "unknown", false) { ObservedAtUtc = sample.Now };

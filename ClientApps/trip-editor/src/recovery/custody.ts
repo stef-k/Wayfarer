@@ -1,6 +1,7 @@
 import type { EditorMetadataOriginalValues, EditorTag, EditorTripMetadata } from '../types';
 import type { MetadataDraft } from '../components/metadataDraft';
 import type { Attempt, Evidence, Permit, TerminalState } from './receiptApi';
+import type { StructureCustody } from './structureCustody';
 
 export type SettingsField = keyof EditorMetadataOriginalValues | 'tags' | 'shareProgressEnabled';
 export type DraftValue = { desired: Partial<MetadataDraft>; baseline: Partial<MetadataDraft>; original?: unknown; policyOriginal?: unknown };
@@ -16,6 +17,7 @@ export type Custody = {
   attempts: Attempt[];
   outcomes: Record<string, Settlement>;
   review: SettingsField[];
+  structure?: StructureCustody;
 };
 
 type Change<T> = { next: Custody; value: T };
@@ -32,7 +34,7 @@ const same = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.str
 const asField = (key: string): SettingsField => key as SettingsField;
 
 /** One IndexedDB transaction owns cross-tab generation and operation checks. */
-async function access<T>(account: string, tripId: string, update: (row: Custody) => Change<T>, write = true): Promise<T> {
+export async function access<T>(account: string, tripId: string, update: (row: Custody) => Change<T>, write = true): Promise<T> {
   const db = await openCustody();
   try {
     return await new Promise<T>((resolve, reject) => {
@@ -60,10 +62,10 @@ async function access<T>(account: string, tripId: string, update: (row: Custody)
   }
 }
 
-/** Upgrades the existing store in one transaction. Existing records keep their frozen v1 wire identity. */
+/** Upgrades the existing store in one transaction. Existing v1 and v2 records keep their frozen wire identities and generations. */
 function openCustody(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open('wayfarer-trip-metadata', 2);
+    const request = indexedDB.open('wayfarer-trip-metadata', 3);
     let blocked = false;
     request.onupgradeneeded = event => {
       if (event.oldVersion !== 0) return;
@@ -84,7 +86,7 @@ function openCustody(): Promise<IDBDatabase> {
 }
 
 /** A stale tab cannot replace or clear another tab's generation. */
-function requireGeneration(row: Custody, generation: number): void {
+export function requireGeneration(row: Custody, generation: number): void {
   if (row.generation !== generation) throw new CustodyRefusal('stale');
 }
 
@@ -128,7 +130,9 @@ export async function listCustody(account: string): Promise<Custody[]> {
     return await new Promise((resolve, reject) => {
       const query = db.transaction('drafts').objectStore('drafts').index('account').getAll(account);
       query.onsuccess = () => resolve((query.result as Custody[]).filter(row =>
-        row.attempts.length > 0 || Object.keys(row.fields).length > 0));
+        row.attempts.length > 0 || Object.keys(row.fields).length > 0 ||
+        !!row.structure && (row.structure.attempts.length > 0 || row.structure.dependents.length > 0 ||
+          Object.keys(row.structure.drafts).length > 0)));
       query.onerror = () => reject(query.error);
     });
   } finally {

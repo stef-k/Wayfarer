@@ -135,6 +135,7 @@ public sealed partial class TripEditorController : ControllerBase
             var routingCapabilities = _externalRoutingCapabilities == null
                 ? new Dictionary<Guid, EditorExternalRoutingCapabilityDto>()
                 : await _externalRoutingCapabilities.ProjectAsync(userId, trip.Segments.ToArray(), cancellationToken);
+            Response.Headers[RequireTripStructureDispatchAttribute.Header] = RequireTripStructureDispatchAttribute.Version;
             return Ok(EditorTripStateMapper.ToEditorState(
                 trip,
                 visitsByPlaceId,
@@ -201,6 +202,7 @@ public sealed partial class TripEditorController : ControllerBase
     /// Persists the complete desired order for normal regions.
     /// </summary>
     [HttpPut("regions/order")]
+    [RequireTripStructureDispatch(replaced: true)]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> OrderRegions(Guid tripId, CancellationToken cancellationToken)
     {

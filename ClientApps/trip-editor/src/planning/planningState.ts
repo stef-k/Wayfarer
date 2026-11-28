@@ -1,3 +1,4 @@
+import { dependentRefusal, sendDependent } from '../recovery/dependentDispatch';
 import { message } from '../../../../wwwroot/js/localization/messages.js';
 import { planningValidationText } from './planningFindingText';
 import { holdLanguageNavigation, isLanguageUnload, registerLanguageDraft } from '../../../../wwwroot/js/localization/languageNavigation.js';
@@ -122,13 +123,16 @@ export const createPlanningWorkspace = (state: Ref<EditorTripState | null>, endp
     draft.error = null;
     draft.confirmed = false;
     try {
-      const response = await fetch(`${endpoint}/planning/${draft.kind}/${draft.id}`, {
+      const dispatch = await sendDependent(endpoint, `${endpoint}/planning/${draft.kind}/${draft.id}`, {
         method: 'PATCH', credentials: 'same-origin', cache: 'no-store',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json', RequestVerificationToken: antiforgery }, body: JSON.stringify(request)
       });
+      if (!dispatch) throw new Error('Unknown Planning dispatch route.');
+      const response = dispatch.response;
       if (!response.ok) {
         const problem = await readPlanningReply<Record<string, unknown>>(response);
-        const statuses: Record<string, number> = { 'planning-request-invalid': 400, 'planning-value-invalid': 400,
+        if (dependentRefusal(response, problem)) await dispatch.complete();
+        const statuses: Record<string, number> = { 'trip-write-upgrade-required': 409, 'planning-request-invalid': 400, 'planning-value-invalid': 400,
           'mutation-authority-unavailable': 401, 'mutation-scope-stale': 409, 'mutation-base-stale': 409,
           'mutation-scope-unavailable': 404, 'mutation-contention': 409 };
         if (response.redirected || !problem || Array.isArray(problem) || typeof problem.code !== 'string'
@@ -147,6 +151,7 @@ export const createPlanningWorkspace = (state: Ref<EditorTripState | null>, endp
       if (response.redirected || reply.contract !== 'planning-1' || reply.success !== true || reply.applied !== !samePlanning(request.expected.planning, desired)
         || reply.targetKind !== draft.kind || reply.targetId !== draft.id || reply.parentId !== draft.parentId
         || !Object.hasOwn(reply, 'planning') || !samePlanning(reply.planning, desired)) throw new Error('Planning acknowledgement incomplete.');
+      await dispatch.complete();
       draft.original = copy(reply.planning);
       draft.confirmed = true;
       planningPositions.set(`${draft.kind}/${draft.id}`, ++publicationPosition);
@@ -157,7 +162,11 @@ export const createPlanningWorkspace = (state: Ref<EditorTripState | null>, endp
           : draft.kind === 'place' ? graph.placesById[draft.id] : draft.kind === 'area' ? graph.areasById[draft.id] : graph.segmentsById[draft.id];
         if (entity && !draft.deleted) entity.planning = copy(reply.planning);
       }
-    } catch {
+    } catch (error) {
+      if (error instanceof Error && (error.message === 'held' || error.message === 'stale' || error.message.startsWith('Reload the editor'))) {
+        draft.error = error.message === 'held' ? message('Editor.ReceiptOverlap', 'Recover the earlier save before sending overlapping changes.') : error.message;
+        return;
+      }
       draft.uncertain = true;
       draft.error = message('Editor.PlanningSaveUncertain', 'Planning save not confirmed. The earlier change may still finish. Your complete draft is retained; saving is paused. Reloading loses this draft and does not undo the attempt.');
     } finally { draft.pending = false; }

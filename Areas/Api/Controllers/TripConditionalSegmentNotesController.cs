@@ -29,6 +29,7 @@ public sealed partial class TripEditorController
 {
     /// <summary>Cookie/User/antiforgery Notes-only intent using the same current-authority transaction as bearer.</summary>
     [HttpPatch("segments/{segmentId:guid}/conditional")]
+    [RequireTripStructureDispatch]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> PatchConditionalSegmentNotes(Guid tripId, Guid segmentId, CancellationToken cancellationToken)
     {

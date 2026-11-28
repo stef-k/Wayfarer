@@ -167,7 +167,8 @@ public static class EditorTripStateMapper
         };
     }
 
-    private static LineString? BuildEffectiveRoute(Segment segment)
+    /// <summary>Builds the effective fallback from the current endpoint and waypoint positions.</summary>
+    internal static LineString? BuildEffectiveRoute(Segment segment)
     {
         var coordinates = new List<Coordinate>();
         if (segment.FromPlace?.Location is Point from) coordinates.Add(from.Coordinate);

@@ -1,6 +1,7 @@
 using System.Net.Http.Headers;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Wayfarer.Models;
 using Wayfarer.Services;
 using Wayfarer.Services.TripMetadataReceipts;
@@ -13,7 +14,8 @@ internal sealed class TripStructureReceiptRoutes(HttpRequest request, Applicatio
 {
     /// <summary>Routes issue, observation and execution through one adapter-bound operation identity.</summary>
     internal async Task<IActionResult> DispatchAsync(Guid tripId, TripReceiptTarget target, string kind, string writeMethod,
-        Guid? operationId, Func<TripStructureWrite, Task<TripStructureResult>> apply, Func<Task>? afterWrite, CancellationToken token)
+        Guid? operationId, Func<TripStructureWrite, Task<TripStructureResult>> apply, Func<Task>? afterWrite, CancellationToken token, bool serializable = false,
+        Func<TripStructureWrite, Func<CancellationToken, Task>, Task<Func<Task<TripPlaceProviderResult>>>>? prepareProvider = null)
     {
         request.HttpContext.Response.Headers.CacheControl = "private, no-store";
         try
@@ -41,13 +43,37 @@ internal sealed class TripStructureReceiptRoutes(HttpRequest request, Applicatio
             }
 
             var permit = await operations.VerifyAsync(tripId, ReadProof(), null, token);
-            var (evidence, newWrite) = await new TripStructureExecution(db, permit, credential).ExecuteAsync(body,
-                (payload, readmit) => apply(new(subject, web, tripId, target.Id, payload, readmit, token)), token);
+            var independent = serializable ? request.HttpContext.RequestServices.GetRequiredService<IDbContextFactory<ApplicationDbContext>>() : null;
+            var (evidence, newWrite) = await new TripStructureExecution(db, permit, credential, independent).ExecuteAsync(body,
+                (payload, readmit, frozen) => apply(new(subject, web, tripId, target.Id, payload, readmit, token, frozen)), token,
+                prepareProvider == null ? null : (payload, check) => prepareProvider(
+                    new(subject, web, tripId, target.Id, payload, _ => throw new InvalidOperationException("Provider preflight cannot admit a write."), token), check));
             if (newWrite && afterWrite != null) await afterWrite();
             return new ObjectResult(evidence.Envelope(permit.Identity))
             {
-                StatusCode = evidence.State == "terminalUnapplied" ? TripStructureExecution.TerminalStatus(evidence.Code) : 200
+                StatusCode = evidence.State switch
+                {
+                    "terminalUnapplied" => TripStructureExecution.TerminalStatus(evidence.Code),
+                    "unresolved" => 503,
+                    "unobserved" or "retired" => 409,
+                    _ => 200
+                }
             };
+        }
+        catch (TripMetadataMutationRejected error) { return error.ToActionResult(); }
+    }
+
+    /// <summary>Reads one strict qualified preview without issuing a permit or applying effects.</summary>
+    internal async Task<IActionResult> PreviewAsync(Guid tripId, Guid targetId,
+        Func<TripStructureWrite, Task<object>> preview, CancellationToken token)
+    {
+        request.HttpContext.Response.Headers.CacheControl = "private, no-store";
+        try
+        {
+            if (tripId == Guid.Empty || targetId == Guid.Empty) throw TripStructureBodies.Invalid();
+            var body = TripStructureBodies.ReadObject(await ReadBodyAsync(token));
+            return new OkObjectResult(await preview(new(subject, web, tripId, targetId, body,
+                _ => throw new InvalidOperationException("Preview cannot admit a write."), token)));
         }
         catch (TripMetadataMutationRejected error) { return error.ToActionResult(); }
     }

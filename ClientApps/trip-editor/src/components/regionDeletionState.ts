@@ -1,6 +1,9 @@
 import { reactive } from 'vue';
 import { message } from '../../../../wwwroot/js/localization/messages.js';
 import { captureMutationPublication } from '../api/tripEditorApi';
+import { CustodyRefusal } from '../recovery/custody';
+import { sendStructureMutation, StructureRefused } from '../recovery/structureMutation';
+import { structureContract, structureRoute } from '../recovery/structureRoutes';
 import { completePlace } from './placeStructuralEditing';
 import { completeSegment } from './segmentNotesDraft';
 import { completeVisitProgress } from './placeConditionalDraft';
@@ -11,10 +14,10 @@ export type Disposition = 'keep' | 'delete';
 export type RegionDeletionChoices = { places: Disposition; areas: Disposition };
 type Sample = { count: number; ids: Guid[]; hasMore: boolean };
 export type RegionDeletionPreview = RegionDeletionChoices & {
-  contractVersion: number; tripId: Guid; sourceRegionId: Guid; sourceRegionName: string;
+  contractVersion: number; contract: string; tripId: Guid; sourceRegionId: Guid; sourceRegionName: string;
   destination: { mode: 'existing' | 'create' | 'not-required'; regionId: Guid | null; name: string | null };
   consequences: { movedPlaces: Sample; deletedPlaces: Sample; movedAreas: Sample; deletedAreas: Sample;
-    deletedSegments: Sample; updatedSegments: Sample; detachedWaypoints: { count: number; ids: { segmentId: string; placeId: string }[]; hasMore: boolean } };
+    deletedSegments: Sample; updatedSegments: Sample; unlinkedVisits: number; deletedCandidates: number; detachedWaypoints: { count: number; ids: { segmentId: string; placeId: string }[]; hasMore: boolean } };
   confirmation: { token: string; expiresAt: string };
 };
 export type RegionDeletionResult = RegionDeletionChoices & { tripId: Guid; sourceRegionId: Guid; destinationRegionId: Guid | null;
@@ -56,13 +59,15 @@ export const createRegionDeletionController = (options: {
     preview: null as RegionDeletionPreview | null, loading: false, submitting: false,
     held: Boolean(heldRecord), error: '', generation: 0 });
   const choices = (): RegionDeletionChoices => ({ places: state.places, areas: state.areas });
-  const matches = (preview: RegionDeletionPreview): boolean => preview.contractVersion === 1
+  const matches = (preview: RegionDeletionPreview): boolean => preview.contractVersion === 2 && preview.contract === structureContract
+    && Number.isSafeInteger(preview.consequences?.unlinkedVisits) && preview.consequences.unlinkedVisits >= 0
+    && Number.isSafeInteger(preview.consequences?.deletedCandidates) && preview.consequences.deletedCandidates >= 0
     && preview.tripId === options.tripId && preview.sourceRegionId === options.sourceId
     && preview.places === state.places && preview.areas === state.areas
     && typeof preview.confirmation?.token === 'string' && Boolean(preview.confirmation.token)
     && Number.isFinite(Date.parse(preview.confirmation.expiresAt))
-    && ['movedPlaces', 'deletedPlaces', 'movedAreas', 'deletedAreas', 'deletedSegments', 'updatedSegments', 'detachedWaypoints']
-      .every(key => validSample(preview.consequences?.[key as keyof typeof preview.consequences]));
+    && (['movedPlaces', 'deletedPlaces', 'movedAreas', 'deletedAreas', 'deletedSegments', 'updatedSegments', 'detachedWaypoints'] as const)
+      .every(key => validSample(preview.consequences?.[key]));
   const post = (suffix: string, body: unknown): Promise<Response> => options.fetch(
     `${options.endpoint}/regions/${options.sourceId}/${suffix}`, { method: 'POST', credentials: 'same-origin',
       headers: { Accept: 'application/json', 'Content-Type': 'application/json', RequestVerificationToken: options.antiforgeryToken },
@@ -74,7 +79,7 @@ export const createRegionDeletionController = (options: {
     state.loading = true;
     state.error = '';
     try {
-      const response = await post('deletion-preview', choices());
+      const response = await post(`deletion-preview?contract=${structureContract}`, choices());
       const body = await response.json();
       if (!options.isCurrent() || generation !== state.generation) return;
       if (!response.ok || !matches(body)) throw new Error(body.title ?? 'Preview unavailable. Try again.');
@@ -97,47 +102,23 @@ export const createRegionDeletionController = (options: {
       state.error = 'Preview expired. Refresh the preview and confirm again.';
       return false;
     }
-    // Recheck other editor tabs immediately before dispatch. A hold is written before any network effect.
     if (options.storage.getItem(options.scopeKey)) { state.held = true; return false; }
-    const attempt: HeldRegionDeletion = { ...choices(), sourceId: options.sourceId, attemptId: crypto.randomUUID() };
-    const encoded = JSON.stringify(attempt);
     state.submitting = true;
     try {
-      options.storage.setItem(options.scopeKey, encoded);
-      if (typeof window !== 'undefined') window.dispatchEvent(new Event('region-deletion-hold'));
-    } catch {
-      state.submitting = false;
-      state.error = 'Browser storage is unavailable. Enable storage before confirming this operation.';
-      return false;
-    }
-    const ownsAttempt = (): boolean => options.isCurrent() && options.storage.getItem(options.scopeKey) === encoded;
-    try {
-      const publish = captureMutationPublication(`${options.endpoint}/regions/${options.sourceId}/deletion`);
-      const response = await post('deletion', { ...choices(), confirmationToken: state.preview.confirmation.token });
-      const body = await response.json();
-      if (!ownsAttempt()) return false;
-      if (response.ok && body.success === true && body.data?.tripId === options.tripId
-          && body.data?.sourceRegionId === options.sourceId && body.data?.places === attempt.places && body.data?.areas === attempt.areas) {
-        validateRegionDeletionAcknowledgement(body, state.preview);
-        // Apply slices before releasing the hold or clearing the deleted target/draft.
-        publish(body);
-        options.onSuccess(body);
-        options.storage.removeItem(options.scopeKey);
-        if (typeof window !== 'undefined') window.dispatchEvent(new Event('region-deletion-hold'));
-        state.preview = null;
-        return true;
-      }
-      if ([400, 401, 403, 404].includes(response.status) || (response.status === 409
-          && ['region-deletion-confirmation-required', 'region-deletion-preview-stale', 'unassigned_region_conflict'].includes(body.code))) {
-        options.storage.removeItem(options.scopeKey);
-        if (typeof window !== 'undefined') window.dispatchEvent(new Event('region-deletion-hold'));
-        state.preview = null;
-        state.error = body.title ?? 'Request rejected. Refresh the preview and confirm again.';
-        return false;
-      }
-      state.held = true;
-    } catch {
-      if (ownsAttempt()) state.held = true;
+      const route = structureRoute(options.endpoint, options.tripId, 'region-delete', { type: 'region', id: options.sourceId });
+      const publish = captureMutationPublication(route.path);
+      const result = await sendStructureMutation<RegionDeletionResult>(options.endpoint, options.antiforgeryToken, route,
+        { ...choices(), confirmationToken: state.preview.confirmation.token });
+      if (!options.isCurrent()) return false;
+      publish(result);
+      options.onSuccess(result);
+      state.preview = null;
+      return true;
+    } catch (error) {
+      if (!options.isCurrent()) return false;
+      state.held = error instanceof CustodyRefusal && error.reason === 'held' || !(error instanceof StructureRefused);
+      state.error = error instanceof Error ? error.message : unknownRegionDeletionMessage;
+      state.preview = null;
     } finally {
       state.submitting = false;
     }

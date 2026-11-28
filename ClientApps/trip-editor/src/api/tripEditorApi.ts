@@ -1,3 +1,6 @@
+import { dependentRefusal, sendDependent } from '../recovery/dependentDispatch';
+import { acceptDispatchVersion, dispatchHeader, findStructureRoute } from '../recovery/structureRoutes';
+import { sendStructureMutation } from '../recovery/structureMutation';
 import type { RegionCreationRequest, PlaceCreationRequest } from './creationTypes';
 import type { PlaceStructureRequest, PlaceStructurePreview } from '../components/placeStructuralEditing';
 import type {
@@ -120,7 +123,9 @@ export const loadEditorState = async (endpoint: string): Promise<EditorTripState
     throw new Error(`Trip Editor API returned ${response.status}`);
   }
 
-  return (await response.json()) as EditorTripState;
+  const graph = (await response.json()) as EditorTripState;
+  acceptDispatchVersion(endpoint, graph.ownerId, graph.tripId, response.headers.get(dispatchHeader));
+  return graph;
 };
 
 /// Searches geocode results through the same-origin Trip Editor proxy only.
@@ -257,7 +262,7 @@ export const createArea = async (
   endpoint: string,
   regionId: string,
   antiforgeryToken: string,
-  request: EditorAreaSaveRequest
+  request: { expected: { areas: { id: string; displayOrder: number | null }[] }; value: EditorAreaSaveRequest }
 ): Promise<EditorMutationResult<EditorArea>> => sendMutation(`${endpoint}/regions/${regionId}/areas`, 'POST', antiforgeryToken, request, 'area create');
 
 /// Updates only dirty Area fields using pinned originals; unsupported servers never receive a legacy fallback.
@@ -273,8 +278,9 @@ export const deleteArea = async (
   endpoint: string,
   areaId: string,
   antiforgeryToken: string,
-  original?: { parentId: string; planning: import('../planning/planningTypes').PlanningAggregate | null }
-): Promise<EditorMutationResult<EditorAreaDeleteResult>> => sendMutation(`${endpoint}/areas/${areaId}`, 'DELETE', antiforgeryToken, original ? { expected: original, operation: 'clear' } : null, 'area delete');
+  confirmationToken: string
+): Promise<EditorMutationResult<EditorAreaDeleteResult>> =>
+  sendMutation(`${endpoint}/areas/${areaId}`, 'DELETE', antiforgeryToken, { confirmationToken }, 'area delete');
 
 /// Persists the complete area order for one normal region.
 export const orderAreas = async (
@@ -350,7 +356,21 @@ const sendMutation = async <TData>(
   }
 
   const publish = captureMutationPublication(url);
-  const response = await fetch(url, init);
+  const editor = /^(.+\/trips\/([^/]+)\/editor)\//iu.exec(url);
+  const route = editor && findStructureRoute(editor[1], editor[2], url, method);
+  if (editor && route) {
+    const result = await sendStructureMutation<TData>(editor[1], antiforgeryToken, route, request as object);
+    publish(result);
+    return result;
+  }
+  const reservation = editor ? await sendDependent(editor[1], url, init) : null;
+  const response = reservation?.response ?? await fetch(url, init);
+  if (reservation && !response.ok) {
+    const problem: unknown = await response.clone().json().catch(() => null);
+    if (dependentRefusal(response, problem)) await reservation.complete();
+    if (response.status === 409 && (problem as { code?: string } | null)?.code === 'trip-write-upgrade-required')
+      throw new EditorMutationHttpError('Reload the editor before saving this Trip change.', 409);
+  }
   requireSession(response);
   if (response.status === 400) {
     throw new EditorValidationError((await response.json()) as ValidationProblemDetails);
@@ -378,6 +398,11 @@ const sendMutation = async <TData>(
   }
 
   const result = await response.json() as EditorMutationResult<TData>;
+  if (reservation) {
+    if (response.redirected || result.success !== true || !result.affected || !result.deletedIds ||
+        !Object.hasOwn(result, 'data') || !Array.isArray(result.warnings)) throw new Error('Segment acknowledgement unavailable.');
+    await reservation.complete();
+  }
   publish(result);
   return result;
 };

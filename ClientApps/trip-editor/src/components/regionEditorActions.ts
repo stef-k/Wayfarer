@@ -1,3 +1,5 @@
+import { saveStructureIntent } from '../recovery/structureMutation';
+import { structureContract } from '../recovery/structureRoutes';
 import { type RegionOrderOriginals, validateRegionOrderAcknowledgement, validateRegionOrderPreview } from './regionOrdering';
 import { onUnmounted, watch } from 'vue';
 import { message, plural } from '../../../../wwwroot/js/localization/messages.js';
@@ -20,6 +22,18 @@ export function useRegionEditorActions(context: any) {
     context.isSaving.value = false;
   }, { flush: 'sync' });
   onUnmounted(() => { editorAlive = false; });
+  /** Persists newer Region input even while an earlier response or permit remains in flight. */
+  watch(() => {
+    if (!context.draft.id || !context.activeRegion.value) return null;
+    try {
+      const payload = owner.request();
+      return Object.keys(payload.changes).length ? JSON.stringify(payload) : null;
+    } catch { return null; }
+  }, frozen => {
+    const id = context.draft.id;
+    if (frozen && id) void saveStructureIntent(context.props.editorEndpoint, 'region-fields', { type: 'region', id },
+      JSON.parse(frozen)).catch(() => undefined);
+  });
   /// Unknown earlier Region effects fence conflicting metadata/reorder/deletion actions in this Trip.
   const held = (): boolean => {
     const mount = document.getElementById('trip-editor-app');
@@ -115,7 +129,7 @@ export function useRegionEditorActions(context: any) {
         : await createRegion(context.props.editorEndpoint, context.props.antiforgeryToken, creation!);
       if (!currentAttempt()) return;
       if (creation) {
-        validateRegionCreation(result, context.props.state.tripId, creation);
+        if (result.contract !== structureContract) validateRegionCreation(result, context.props.state.tripId, creation);
         owner.creationUncertain.value = false;
       }
       // Acknowledge before emitting: Vue schedules the parent's authoritative props for a later tick.
@@ -225,7 +239,7 @@ export function useRegionEditorActions(context: any) {
       owner.orderUncertain.value = true;
       dispatched = true;
       const result = await orderRegions(context.props.editorEndpoint, context.props.antiforgeryToken, request);
-      validateRegionOrderAcknowledgement(result, tripId, request);
+      if (result.contract !== structureContract) validateRegionOrderAcknowledgement(result, tripId, request);
       owner.orderUncertain.value = false;
       owner.orderIntent.value = null;
       owner.orderingPending.value = false;

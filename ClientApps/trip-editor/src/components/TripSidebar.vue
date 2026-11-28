@@ -8,6 +8,7 @@ import { planningWorkspaceKey } from '../planning/planningState';
 import { discardBeforeSwitchingTabs } from './editorNavigationText';
 import PlanCheck from '../planning/PlanCheck.vue';
 import MetadataEditor from './MetadataEditor.vue';
+import StructureRecoveryPanel from '../recovery/StructureRecoveryPanel.vue';
 import MapSearchControl from './MapSearchControl.vue';
 import RegionManager from './RegionManager.vue';
 import SegmentManager from './SegmentManager.vue';
@@ -267,6 +268,7 @@ function normalize(value: string): string {
 
 <template>
   <aside class="trip-editor-sidebar" :class="{ 'trip-editor-sidebar--mobile-drawer': mobileDrawerActive }" :data-mobile-drawer-state="drawerMode">
+    <StructureRecoveryPanel v-if="state.ownerId" :account="state.ownerId" :trip-id="state.tripId" :endpoint="editorEndpoint" />
     <header class="trip-editor-sidebar__header">
       <div>
         <p class="trip-editor-sidebar__eyebrow">{{ localize("Editor.Title", "Trip Editor") }}</p>

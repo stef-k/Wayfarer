@@ -1,4 +1,6 @@
 using System.Text.Json;
+using NetTopologySuite.Geometries;
+using Wayfarer.Util;
 using Wayfarer.Services;
 
 namespace Wayfarer.Models.Dtos;
@@ -90,6 +92,38 @@ internal sealed record CreationConditionalRequest(JsonElement Value, IReadOnlyLi
 
     /// <summary>Shares the published safe request-rejection envelope.</summary>
     internal static TripMetadataMutationRejected Invalid(string message) => new(400, "mutation-request-invalid", message, new() { ["request"] = [message] });
+
+    /// <summary>Requires present strings; only marker fields may use empty reset values.</summary>
+    internal static string CreationText(Dictionary<string, JsonElement> value, string key, bool empty)
+    {
+        var item = CreationConditionalRequest.Required(value, key);
+        if (item.ValueKind != JsonValueKind.String || !empty && string.IsNullOrWhiteSpace(item.GetString()))
+            throw CreationConditionalRequest.Invalid($"{key} must be a valid string.");
+        return item.GetString()!;
+    }
+
+    /// <summary>Reuses canonical Notes persistence and rejects embedded image payloads.</summary>
+    internal static string? CreationNotes(Dictionary<string, JsonElement> value)
+    {
+        var item = CreationConditionalRequest.Required(value, "notes");
+        if (item.ValueKind is not (JsonValueKind.String or JsonValueKind.Null)) throw CreationConditionalRequest.Invalid("notes must be a string or null.");
+        var notes = item.GetString();
+        if (RichNotes.ContainsDataImageSource(notes)) throw CreationConditionalRequest.Invalid("Notes images must use external URLs.");
+        return RichNotes.Normalize(notes);
+    }
+
+    /// <summary>Accepts null or one finite WGS84 pair, including zeroes.</summary>
+    internal static Point? CreationPoint(JsonElement location)
+    {
+        if (location.ValueKind == JsonValueKind.Null) return null;
+        var fields = CreationConditionalRequest.Fields(location, ["latitude", "longitude"]);
+        var latitude = CreationConditionalRequest.Required(fields, "latitude");
+        var longitude = CreationConditionalRequest.Required(fields, "longitude");
+        if (latitude.ValueKind != JsonValueKind.Number || longitude.ValueKind != JsonValueKind.Number
+            || !latitude.TryGetDouble(out var lat) || !longitude.TryGetDouble(out var lon) || lat is not (>= -90 and <= 90) || lon is not (>= -180 and <= 180))
+            throw CreationConditionalRequest.Invalid("location requires a finite WGS84 coordinate pair.");
+        return new Point(lon, lat) { SRID = 4326 };
+    }
 }
 
 /// <summary>Region content is not an append dependency, except its exact canonical identity.</summary>

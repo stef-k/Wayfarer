@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Wayfarer.Models;
 using Wayfarer.Models.Dtos.Editor;
 using Wayfarer.Services;
+using Wayfarer.Services.TripMetadataReceipts;
 
 namespace Wayfarer.Areas.Api.Controllers;
 
@@ -19,9 +20,12 @@ internal static class RegionDeletionEndpoint
         try
         {
             var request = await RegionDeletionRequestParser.ParseAsync(controller.Request.Body, mutation, token);
+            var adapter = !mutation && controller.Request.Query["contract"] is { Count: 1 } version
+                && version[0] == TripMetadataIdentity.StructureVersion ? authority == null ? "web" : "bearer" : null;
+            if (adapter != null) controller.Response.Headers.CacheControl = "private, no-store";
             return mutation
                 ? controller.Ok(await lifecycle.ConfirmRegionDeletionAsync(tripId, regionId, userId, request, token, authority))
-                : controller.Ok(await lifecycle.PreviewRegionDeletionAsync(tripId, regionId, userId, request, token));
+                : controller.Ok(await lifecycle.PreviewRegionDeletionAsync(tripId, regionId, userId, request, token, adapter));
         }
         catch (TripMetadataMutationRejected rejection) { return rejection.ToActionResult(); }
         catch (RegionDeletionRejectedException rejection)

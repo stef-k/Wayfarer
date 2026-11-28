@@ -6,17 +6,26 @@ import { adoptBases, CustodyRefusal, heldFields, knownHistory, listCustody, type
 import { receiptStatus, recoverMetadata, type Recovery } from './recoverMetadata';
 import { custodyMessage } from './useMetadataCustody';
 import ReceiptComparison from './ReceiptComparison.vue';
+import StructureRecoveryPanel from './StructureRecoveryPanel.vue';
+import { legacyRegionHoldKey } from './structureMutation';
+import { isId } from './structureRoutes';
 
 const props = defineProps<{ account: string; editorUrl: string }>();
 const entries = shallowRef<Recovery[]>([]);
 const busy = ref('');
+const legacyTrips = ref<string[]>([]);
 const error = ref('');
 
 const endpoint = (tripId: string): string => `/api/trips/${tripId}/editor`;
 const editUrl = (tripId: string): string => props.editorUrl.replace('00000000-0000-0000-0000-000000000000', tripId);
 
 onMounted(async () => {
-  try { entries.value = (await listCustody(props.account)).map(row => ({ row, current: null })); }
+  try {
+    entries.value = (await listCustody(props.account)).map(row => ({ row, current: null }));
+    const prefix = legacyRegionHoldKey(props.account, '');
+    legacyTrips.value = Object.keys(localStorage).filter(key => key.startsWith(prefix)).map(key => key.slice(prefix.length))
+      .filter(id => isId(id) && !entries.value.some(entry => entry.row.tripId === id));
+  }
   catch { error.value = custodyMessage('storage'); }
 });
 
@@ -48,7 +57,7 @@ async function adopt(entry: Recovery, field: SettingsField): Promise<void> {
 </script>
 
 <template>
-  <section v-if="entries.length || error" class="mb-3" aria-labelledby="trip-receipt-recovery-heading">
+  <section v-if="entries.length || legacyTrips.length || error" class="mb-3" aria-labelledby="trip-receipt-recovery-heading">
     <h3 id="trip-receipt-recovery-heading">{{ localize('Editor.ReceiptMyTrips', 'Recover Trip saves and drafts') }}</h3>
     <p v-if="error" role="status">{{ error }}</p>
     <article v-for="entry in entries" :key="entry.row.tripId" class="border rounded p-2 mb-2">
@@ -65,10 +74,12 @@ async function adopt(entry: Recovery, field: SettingsField): Promise<void> {
       <p v-for="state in new Set([...entry.settled ?? [], ...knownHistory(entry.row)])" :key="state" role="status">{{ receiptStatus(state) }}</p>
       <ReceiptComparison v-if="entry.current" :current="entry.current" :fields="entry.row.review"
         :disabled="!!busy" @adopt="field => adopt(entry, field)" />
-      <button class="btn btn-outline-secondary btn-sm me-2" type="button" :disabled="!!busy" @click="recover(entry.row.tripId)">
+      <StructureRecoveryPanel :account="account" :trip-id="entry.row.tripId" :endpoint="endpoint(entry.row.tripId)" standalone />
+      <button v-if="entry.row.attempts.length || Object.keys(entry.row.fields).length" class="btn btn-outline-secondary btn-sm me-2" type="button" :disabled="!!busy" @click="recover(entry.row.tripId)">
         {{ localize('Editor.ReceiptRecover', 'Recover Trip save') }}
       </button>
       <a v-if="entry.current" :href="editUrl(entry.row.tripId)">{{ localize('Editor.EditTrip', 'Edit Trip') }}</a>
     </article>
+    <StructureRecoveryPanel v-for="tripId in legacyTrips" :key="tripId" :account="account" :trip-id="tripId" :endpoint="endpoint(tripId)" standalone />
   </section>
 </template>

@@ -29,6 +29,7 @@ public sealed partial class TripEditorController
 {
     /// <summary>Cookie/User/antiforgery dirty Area fields through the same server-owned compare/apply boundary.</summary>
     [HttpPatch("areas/{areaId:guid}/conditional")]
+    [RequireTripStructureDispatch(replaced: true)]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> PatchConditionalArea(Guid tripId, Guid areaId, CancellationToken cancellationToken)
     {

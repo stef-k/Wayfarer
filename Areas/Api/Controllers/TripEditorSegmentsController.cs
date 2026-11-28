@@ -9,6 +9,7 @@ public sealed partial class TripEditorController
     /// Creates a trip-level segment in an owned trip.
     /// </summary>
     [HttpPost("segments")]
+    [RequireTripStructureDispatch]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> CreateSegment(Guid tripId, CancellationToken cancellationToken)
     {
@@ -26,6 +27,7 @@ public sealed partial class TripEditorController
     /// Updates complete editable fields for one owned segment.
     /// </summary>
     [HttpPut("segments/{segmentId:guid}")]
+    [RequireTripStructureDispatch]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> UpdateSegment(Guid tripId, Guid segmentId, CancellationToken cancellationToken)
     {
@@ -49,6 +51,7 @@ public sealed partial class TripEditorController
     /// Deletes one owned segment.
     /// </summary>
     [HttpDelete("segments/{segmentId:guid}")]
+    [RequireTripStructureDispatch]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> DeleteSegment(Guid tripId, Guid segmentId, CancellationToken cancellationToken)
     {
@@ -66,6 +69,7 @@ public sealed partial class TripEditorController
     /// Persists the complete desired trip-level segment order.
     /// </summary>
     [HttpPut("segments/order")]
+    [RequireTripStructureDispatch]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> OrderSegments(Guid tripId, CancellationToken cancellationToken)
     {

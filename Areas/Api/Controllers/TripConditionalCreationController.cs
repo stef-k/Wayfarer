@@ -1,11 +1,10 @@
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using NetTopologySuite.Geometries;
 using Wayfarer.Models;
 using Wayfarer.Models.Dtos;
 using Wayfarer.Services;
-using Wayfarer.Util;
+using static Wayfarer.Models.Dtos.CreationConditionalRequest;
 
 namespace Wayfarer.Areas.Api.Controllers;
 
@@ -70,37 +69,5 @@ public partial class TripsController
             return Ok(result);
         }
         catch (TripMetadataMutationRejected rejection) { return rejection.ToActionResult(); }
-    }
-
-    /// <summary>Requires present strings; only marker fields may use empty reset values.</summary>
-    private static string CreationText(Dictionary<string, JsonElement> value, string key, bool empty)
-    {
-        var item = CreationConditionalRequest.Required(value, key);
-        if (item.ValueKind != JsonValueKind.String || !empty && string.IsNullOrWhiteSpace(item.GetString()))
-            throw CreationConditionalRequest.Invalid($"{key} must be a valid string.");
-        return item.GetString()!;
-    }
-
-    /// <summary>Reuses canonical Notes persistence and rejects embedded image payloads.</summary>
-    private static string? CreationNotes(Dictionary<string, JsonElement> value)
-    {
-        var item = CreationConditionalRequest.Required(value, "notes");
-        if (item.ValueKind is not (JsonValueKind.String or JsonValueKind.Null)) throw CreationConditionalRequest.Invalid("notes must be a string or null.");
-        var notes = item.GetString();
-        if (RichNotes.ContainsDataImageSource(notes)) throw CreationConditionalRequest.Invalid("Notes images must use external URLs.");
-        return RichNotes.Normalize(notes);
-    }
-
-    /// <summary>Accepts null or one finite WGS84 pair, including zeroes.</summary>
-    private static Point? CreationPoint(JsonElement location)
-    {
-        if (location.ValueKind == JsonValueKind.Null) return null;
-        var fields = CreationConditionalRequest.Fields(location, ["latitude", "longitude"]);
-        var latitude = CreationConditionalRequest.Required(fields, "latitude");
-        var longitude = CreationConditionalRequest.Required(fields, "longitude");
-        if (latitude.ValueKind != JsonValueKind.Number || longitude.ValueKind != JsonValueKind.Number
-            || !latitude.TryGetDouble(out var lat) || !longitude.TryGetDouble(out var lon) || !IsValidCoordinate(lat, lon))
-            throw CreationConditionalRequest.Invalid("location requires a finite WGS84 coordinate pair.");
-        return new Point(lon, lat) { SRID = 4326 };
     }
 }

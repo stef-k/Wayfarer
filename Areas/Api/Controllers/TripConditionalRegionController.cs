@@ -40,6 +40,7 @@ public sealed partial class TripEditorController
 {
     /// <summary>Cookie/User/antiforgery Region scalar editing through the same compare/apply authority as bearer.</summary>
     [HttpPatch("regions/{regionId:guid}/conditional")]
+    [RequireTripStructureDispatch(replaced: true)]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> PatchConditionalRegion(Guid tripId, Guid regionId, CancellationToken cancellationToken)
     {

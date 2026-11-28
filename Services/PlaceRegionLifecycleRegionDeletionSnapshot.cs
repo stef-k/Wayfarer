@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using NetTopologySuite.Geometries;
 using Wayfarer.Models;
 using Wayfarer.Models.Dtos.Editor;
+using Wayfarer.Services.TripMetadataReceipts;
 
 namespace Wayfarer.Services;
 
@@ -12,7 +13,7 @@ public sealed partial class PlaceRegionLifecycleService
 {
     /// <summary>Reads persisted, untracked operation inputs; callers supply snapshot isolation or held row barriers.</summary>
     private async Task<RegionDeletionSnapshot> ReadRegionDeletionAsync(Guid tripId, Guid sourceId, string userId,
-        RegionDeletionPreviewRequestDto choices, Guid proposedId, CancellationToken token)
+        RegionDeletionPreviewRequestDto choices, Guid proposedId, CancellationToken token, bool protectedWrite = false)
     {
         var trip = await _dbContext.Trips.AsNoTracking().SingleOrDefaultAsync(t => t.Id == tripId && t.UserId == userId, token);
         if (trip == null) throw new RegionDeletionRejectedException(404, "not-found", "Trip or Region not found.");
@@ -60,8 +61,11 @@ public sealed partial class PlaceRegionLifecycleService
         var profileIds = segments.Where(s => s.TransportProfileId.HasValue).Select(s => s.TransportProfileId!.Value).Distinct().ToArray();
         var profiles = await _dbContext.Set<TransportProfile>().AsNoTracking().Where(p => profileIds.Contains(p.Id)).OrderBy(p => p.Id).ToArrayAsync(token);
         if (profiles.Length != profileIds.Length) throw MalformedDeletionGraph();
-        return new(trip, source, regions, places, areas, destination, destinationPlaces, destinationAreas,
+        var snapshot = new RegionDeletionSnapshot(trip, source, regions, places, areas, destination, destinationPlaces, destinationAreas,
             segments, segmentOrders, anchors, profiles, endpointIds);
+        if (!protectedWrite || choices.Places != "delete") return snapshot;
+        var links = await ReadVisitLinksAsync(placeIds, token);
+        return snapshot with { Links = links };
     }
 
     /// <summary>Uses database collation for equal-order Area names, then a stable identity tie-breaker.</summary>
@@ -95,7 +99,8 @@ public sealed partial class PlaceRegionLifecycleService
         ? new { geometry.SRID, Wkb = Convert.ToBase64String(geometry.AsBinary()) } : value;
 
     /// <summary>Builds complete counts and deterministic samples without exposing child content.</summary>
-    private RegionDeletionPreviewDto BuildRegionDeletionPreview(RegionDeletionSnapshot s, string userId, RegionDeletionPreviewRequestDto choices)
+    private RegionDeletionPreviewDto BuildRegionDeletionPreview(RegionDeletionSnapshot s, string userId,
+        RegionDeletionPreviewRequestDto choices, string? adapter = null)
     {
         var deleting = choices.Places == "delete";
         var endpoint = deleting ? s.EndpointIds : [];
@@ -110,10 +115,19 @@ public sealed partial class PlaceRegionLifecycleService
             DeletionSample(choices.Areas == "delete" ? s.Areas.Select(a => a.Id) : []),
             DeletionSample(endpoint), DeletionSample(surviving.Select(x => x.Id)),
             new(associations.Length, associations.Take(5).ToArray(), associations.Length > 5));
-        return new(1, s.Trip.Id, s.Source.Id, s.Source.Name, choices.Places, choices.Areas, s.Destination, effects,
+        if (adapter != null) effects = effects with { UnlinkedVisits = s.Links.Events.Length, DeletedCandidates = s.Links.Candidates.Length };
+        return new(adapter == null ? 1 : 2, s.Trip.Id, s.Source.Id, s.Source.Name, choices.Places, choices.Areas, s.Destination, effects,
             new(!string.IsNullOrWhiteSpace(s.Source.Notes), !string.IsNullOrWhiteSpace(s.Source.CoverImageUrl), s.Source.Center != null, s.Source.Planning != null),
             _confirmation.IssueRegionDeletion(userId, s.Trip.Id, s.Source.Id, choices.Places, choices.Areas,
-                s.Destination, RegionDeletionFingerprint(s)));
+                s.Destination, RegionConsentFingerprint(s, adapter), adapter))
+        { Contract = adapter == null ? null : TripMetadataIdentity.StructureVersion };
+    }
+
+    /// <summary>Extends the versioned fingerprint with actual linked row identities in destructive branches.</summary>
+    private string RegionConsentFingerprint(RegionDeletionSnapshot snapshot, string? adapter)
+    {
+        var material = RegionDeletionFingerprint(snapshot);
+        return adapter == null ? material : Models.Dtos.PlaceStructuralRequest.Hash(new { material, snapshot.Links });
     }
 
     private static EditorLifecycleDependencySampleDto DeletionSample(IEnumerable<Guid> ids)
@@ -128,6 +142,9 @@ internal sealed record RegionDeletionSnapshot(Trip Trip, Region Source, Region[]
     RegionDeletionDestinationDto Destination, Place[] DestinationPlaces, Area[] DestinationAreas, Segment[] Segments,
     Segment[] SegmentOrders, Place[] Anchors, TransportProfile[] Profiles, Guid[] EndpointIds)
 {
+    /// <summary>Private destructive link proof, present only for version-two consent.</summary>
+    internal TripDeletionVisitLinks Links { get; init; } = new([], []);
+
     /// <summary>All earlier-class rows needed before Region/Trip membership barriers.</summary>
     internal LifecycleLockCandidates Locks => new(Profiles.Select(p => p.Id).Order().ToArray(),
         Segments.Concat(SegmentOrders).Select(s => s.Id).Distinct().Order().ToArray(),

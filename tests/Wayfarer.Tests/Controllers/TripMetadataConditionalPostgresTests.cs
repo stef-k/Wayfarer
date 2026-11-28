@@ -268,13 +268,16 @@ public sealed partial class TripMetadataConditionalPostgresTests(PostgresImportT
     }
 
     /// <summary>Registers per-request contexts while keeping production routing and authority intact.</summary>
-    private Task<WebApplication> StartAsync(ApplicationDbContext db, IInterceptor[]? interceptors = null, Action<WebApplication>? middleware = null) =>
+    private Task<WebApplication> StartAsync(ApplicationDbContext db, IInterceptor[]? interceptors = null,
+        Action<WebApplication>? middleware = null, Action<IServiceCollection>? servicesOverride = null) =>
         IdentityRouteHost.StartAsync(db, CreateTestDirectory(), services =>
         {
             services.AddScoped(_ => fixture.CreateContext(interceptors ?? []));
+            services.AddSingleton<IDbContextFactory<ApplicationDbContext>>(new ManagedImportTestScope.Contexts(fixture));
             services.AddSingleton(_warmup.Object);
             services.AddSingleton(_thumbnails.Object);
             services.AddSingleton(Mock.Of<ITripEditorGeocodeSearchService>());
+            servicesOverride?.Invoke(services);
         }, middleware);
 
     /// <summary>Uses a genuine User cookie and its matching antiforgery token.</summary>

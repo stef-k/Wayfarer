@@ -89,6 +89,7 @@ internal sealed class TripMetadataReceiptStore(ApplicationDbContext db)
                 """, token);
             await transaction.CommitAsync(token);
         }
+        await new TripStructureClaims(db).CleanupAsync(this, token);
     }
 }
 

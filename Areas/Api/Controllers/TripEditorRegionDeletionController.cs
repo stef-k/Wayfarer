@@ -14,6 +14,7 @@ public sealed partial class TripEditorController
 
     /// <summary>Dispatches one explicitly confirmed disposition operation; never retries a destructive request.</summary>
     [HttpPost("regions/{regionId:guid}/deletion")]
+    [RequireTripStructureDispatch(replaced: true)]
     [ValidateAntiForgeryToken]
     public Task<IActionResult> ConfirmRegionDeletion(Guid tripId, Guid regionId,
         [FromServices] PlaceRegionLifecycleService lifecycle, CancellationToken token) =>

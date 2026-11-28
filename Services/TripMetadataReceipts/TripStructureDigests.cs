@@ -58,7 +58,7 @@ internal static class TripStructureDigests
         : "sha256:" + Convert.ToHexStringLower(SHA256.HashData(Utf8(PlanningCodec.Write(planning))));
 
     /// <summary>Frames the exact text value, including a distinct marker for null.</summary>
-    private static string Text(string entity, string field, string? value) =>
+    internal static string Text(string entity, string field, string? value) =>
         Hash(Utf8(ResultContract), Utf8(entity), Utf8(field), Utf8(value == null ? "n" : "s"), Utf8(value ?? ""));
 
     /// <summary>Frames finite published coordinates in latitude/longitude order.</summary>

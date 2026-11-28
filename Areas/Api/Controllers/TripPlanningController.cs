@@ -75,6 +75,7 @@ public sealed partial class TripEditorController
 
     /// <summary>Cookie/User/antiforgery planning save; private errors and successes bypass caches.</summary>
     [HttpPatch("planning/{kind}/{targetId:guid}")]
+    [RequireTripStructureDispatch]
     [ValidateAntiForgeryToken]
     [RequestSizeLimit(262144)]
     public async Task<IActionResult> PatchPlanning(Guid tripId, string kind, Guid targetId, CancellationToken cancellationToken)

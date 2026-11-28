@@ -1,3 +1,5 @@
+import { saveStructureIntent } from '../recovery/structureMutation';
+import { structureContract } from '../recovery/structureRoutes';
 import { message, plural } from '../../../../wwwroot/js/localization/messages.js';
 import { editorWarningText } from './editorFeedbackText';
 import { validatePlaceCreation, type PlaceCreationRequest } from '../api/creationTypes';
@@ -18,6 +20,18 @@ export function usePlaceEditorActions(context: any) {
   let alive = true;
   let savingSession: number | null = null;
   onUnmounted(() => { alive = false; });
+  /** Retains the newer Place scalar draft independently of the earlier protected dispatch. */
+  watch(() => {
+    if (!context.placeDraft.id || owner.structural()) return null;
+    try {
+      const payload = owner.request();
+      return Object.keys(payload.changes).length ? JSON.stringify(payload) : null;
+    } catch { return null; }
+  }, frozen => {
+    const id = context.placeDraft.id;
+    if (frozen && id) void saveStructureIntent(context.props.editorEndpoint, 'place-fields', { type: 'place', id },
+      JSON.parse(frozen)).catch(() => undefined);
+  });
   // Discard retires this attempt's UI gate without declaring that the server did not commit.
   watch(() => owner.session(), () => {
     if (savingSession === null) return;
@@ -175,15 +189,15 @@ export function usePlaceEditorActions(context: any) {
           ? await updatePlace(context.props.editorEndpoint, placeId, context.props.antiforgeryToken, structure!)
           : await createPlace(context.props.editorEndpoint, complete.regionId!, context.props.antiforgeryToken, creation!);
       if (structure) {
-        validatePlaceAcknowledgement(result, context.props.state.tripId, placeId, complete.regionId!, scalar, structure, segmentIds);
+        if (result.contract !== structureContract) validatePlaceAcknowledgement(result, context.props.state.tripId, placeId, complete.regionId!, scalar, structure, segmentIds);
         releaseAttempt();
       }
       if (!currentAttempt()) return;
       if (creation) {
-        validatePlaceCreation(result, context.props.state.tripId, creation);
+        if (result.contract !== structureContract) validatePlaceCreation(result, context.props.state.tripId, creation);
         owner.creationUncertain.value = false;
       }
-      else if (!structure) validatePlaceAcknowledgement(result, context.props.state.tripId, placeId, complete.regionId!, scalar);
+      else if (!structure && result.contract !== structureContract) validatePlaceAcknowledgement(result, context.props.state.tripId, placeId, complete.regionId!, scalar);
       owner.acknowledge(result.data, conditional?.changes ?? complete);
       for (const [regionId, ids] of Object.entries(result.affected.placeOrdersByRegionId) as [string, string[]][]) {
         if (owner.structuralOrders.value) owner.structuralOrders.value[regionId] = ids.map(id => {
@@ -257,7 +271,7 @@ export function usePlaceEditorActions(context: any) {
       owner.structuralHolds.value.push({ targetId: place.id, regionIds: [place.regionId], intent: attemptId });
       dispatched = true;
       const result = await deletePlace(context.props.editorEndpoint, place.id, context.props.antiforgeryToken, preview.confirmation.token);
-      validatePlaceDeletionAcknowledgement(result, preview);
+      if (result.contract !== structureContract) validatePlaceDeletionAcknowledgement(result, preview);
       if (!scopeCurrent()) return;
       const clearTarget = unchanged();
       context.emit('mutationApplied', result as EditorMutationResult<unknown>);
@@ -334,7 +348,7 @@ export function usePlaceEditorActions(context: any) {
       owner.structuralHolds.value.push({ targetId: regionId, regionIds: [regionId], intent: attemptIntent });
       dispatched = true;
       const result = await orderPlaces(context.props.editorEndpoint, regionId, context.props.antiforgeryToken, request);
-      validatePlaceOrderAcknowledgement(result, context.props.state.tripId, regionId, ids, originals);
+      if (result.contract !== structureContract) validatePlaceOrderAcknowledgement(result, context.props.state.tripId, regionId, ids, originals);
       releaseAttempt();
       if (!currentAttempt()) return;
       context.emit('mutationApplied', result as EditorMutationResult<unknown>);

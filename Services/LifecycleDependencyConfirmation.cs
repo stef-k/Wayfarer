@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.DataProtection;
 using Wayfarer.Models.Dtos.Editor;
 
@@ -13,6 +14,7 @@ public sealed class LifecycleDependencyConfirmation
     private static readonly TimeSpan Lifetime = TimeSpan.FromMinutes(10);
     private readonly IDataProtector _protector;
     private readonly IDataProtector _regionDeletionProtector;
+    private readonly IDataProtector _protectedRegionDeletionProtector;
     private readonly IDataProtector _placeDeletionProtector;
     private readonly IDataProtector _coordinateProtector;
     private readonly IDataProtector _moveProtector;
@@ -27,6 +29,7 @@ public sealed class LifecycleDependencyConfirmation
     {
         _protector = provider.CreateProtector("Wayfarer.PlaceRegionLifecycle.DependencyConfirmation.v1");
         _regionDeletionProtector = provider.CreateProtector("Wayfarer.RegionDeletion.Content.v1");
+        _protectedRegionDeletionProtector = provider.CreateProtector("Wayfarer.RegionDeletion.Content.v2");
         _placeDeletionProtector = provider.CreateProtector("Wayfarer.PlaceDeletion.Content.v1");
         _coordinateProtector = provider.CreateProtector("Wayfarer.PlaceCoordinates.Conditions.v1");
         _moveProtector = provider.CreateProtector("Wayfarer.PlaceMove.Conditions.v1");
@@ -138,21 +141,24 @@ public sealed class LifecycleDependencyConfirmation
 
     /// <summary>Protects complete content approval under a purpose that legacy DELETE cannot consume.</summary>
     internal RegionDeletionConfirmationDto IssueRegionDeletion(string userId, Guid tripId, Guid sourceId,
-        string places, string areas, RegionDeletionDestinationDto destination, string fingerprint)
+        string places, string areas, RegionDeletionDestinationDto destination, string fingerprint, string? adapter = null)
     {
         var expires = _timeProvider.GetUtcNow().Add(Lifetime);
         var payload = new RegionDeletionApproval(userId, tripId, sourceId, places, areas, destination,
-            fingerprint, expires);
-        return new(_regionDeletionProtector.Protect(JsonSerializer.Serialize(payload)), expires);
+            fingerprint, expires) { Adapter = adapter };
+        var protector = adapter == null ? _regionDeletionProtector : _protectedRegionDeletionProtector;
+        return new(protector.Protect(JsonSerializer.Serialize(payload)), expires);
     }
 
     /// <summary>Authenticates the token separately from expiry/content checks so malformed input is a 400.</summary>
-    internal RegionDeletionApproval ReadRegionDeletion(string token)
+    internal RegionDeletionApproval ReadRegionDeletion(string token, string? adapter = null)
     {
         try
         {
-            return JsonSerializer.Deserialize<RegionDeletionApproval>(_regionDeletionProtector.Unprotect(token))
-                ?? throw new JsonException();
+            var protector = adapter == null ? _regionDeletionProtector : _protectedRegionDeletionProtector;
+            var approval = JsonSerializer.Deserialize<RegionDeletionApproval>(protector.Unprotect(token)) ?? throw new JsonException();
+            if (approval.Adapter != adapter) throw new JsonException();
+            return approval;
         }
         catch (Exception exception) when (exception is CryptographicException or JsonException)
         {
@@ -247,7 +253,12 @@ public sealed record LifecycleDependencies(
 
 /// <summary>Protected operation/version-scoped approval; only a hash of authored content leaves the server.</summary>
 internal sealed record RegionDeletionApproval(string UserId, Guid TripId, Guid SourceId, string Places, string Areas,
-    RegionDeletionDestinationDto Destination, string Fingerprint, DateTimeOffset ExpiresAt);
+    RegionDeletionDestinationDto Destination, string Fingerprint, DateTimeOffset ExpiresAt)
+{
+    /// <summary>Version-two consent binds the original preview adapter.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Adapter { get; init; }
+}
 
 /// <summary>Transient Place consent is neither authorization nor a durable deletion receipt.</summary>
 internal sealed record PlaceDeletionApproval(string UserId, Guid TripId, Guid PlaceId, string Fingerprint, DateTimeOffset ExpiresAt);
