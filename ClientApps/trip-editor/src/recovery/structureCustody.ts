@@ -29,17 +29,26 @@ export class StaleStructureDraft extends CustodyRefusal {
   constructor() { super('stale'); }
 }
 
+/** Both existing-Place Save routes edit the same durable draft. */
+export function structureDraftKey({ kind, target }: StructureRoute, localId?: string): string {
+  const draftKind = kind === 'place-fields' ? 'place-save' : kind;
+  return JSON.stringify(localId === undefined ? [draftKind, target.type, target.id] : [draftKind, target.type, target.id, localId]);
+}
+
 /** Replaces only the expected draft generation, or starts a draft in an empty slot. */
 export function persistStructure(scope: Scope, route: StructureRoute, payload: object, localId?: string,
   expectedGeneration?: number): Promise<StructureDraftVersion & { row: Custody }> {
   return access(scope.account, scope.tripId, row => {
     const drafts = state(row).drafts;
-    const prefix = [route.kind, route.target.type, route.target.id];
-    const key = JSON.stringify([...prefix, ...(localId === undefined ? [] : [localId])]);
+    const key = structureDraftKey(route, localId);
+    // Old scalar drafts still occupy the form's slot. Keep their keys intact for recovery and settlement.
+    if ((route.kind === 'place-fields' || route.kind === 'place-save') &&
+        Object.hasOwn(drafts, JSON.stringify(['place-fields', route.target.type, route.target.id])))
+      throw new StaleStructureDraft();
     const prior = drafts[key];
     const matches = expectedGeneration === undefined ? prior === undefined : prior?.generation === expectedGeneration;
     if (!matches || prior?.review) throw new StaleStructureDraft();
-    if (!prior || JSON.stringify(prior.payload) !== JSON.stringify(payload))
+    if (!prior || prior.route.kind !== route.kind || JSON.stringify(prior.payload) !== JSON.stringify(payload))
       drafts[key] = { route, localId, payload, generation: ++row.generation };
     return { next: row, value: { row, key, generation: drafts[key].generation } };
   });

@@ -3,7 +3,7 @@ import { CustodyRefusal, readCustody } from './custody';
 import { issueStructure, sendStructure } from './receiptStructure';
 import { object } from './receiptStructureResults';
 import { persistStructure, readStagedStructure, rememberStructure, reserveStructure, settleStructure, StaleStructureDraft,
-  targetRow, type StructureDraftVersion } from './structureCustody';
+  structureDraftKey, targetRow, type StructureDraftVersion } from './structureCustody';
 import { readStructureOwner, StructureOwnerUnavailable } from './structureOwner';
 import { dispatchAuthority, structureContract, structureRoute, type StructureRoute } from './structureRoutes';
 
@@ -12,8 +12,9 @@ export const structureOwnerLost = 'trip-structure-owner-unavailable';
 type StagedIntent = { formSession?: symbol; generation?: number; latest?: Promise<StructureDraftVersion> };
 const stagedIntents = new Map<string, StagedIntent>();
 
+/** Serializes all edits to the same durable slot through one in-memory staging queue. */
 const revisionKey = (scope: { account: string; tripId: string }, route: StructureRoute, localId?: string): string =>
-  JSON.stringify([scope.account, scope.tripId, route.kind, route.target.type, route.target.id, localId]);
+  JSON.stringify([scope.account, scope.tripId, structureDraftKey(route, localId)]);
 
 export class StructureRefused extends Error {
   constructor(readonly code: string) { super('The earlier Trip save was refused. Review current values before saving again.'); }
