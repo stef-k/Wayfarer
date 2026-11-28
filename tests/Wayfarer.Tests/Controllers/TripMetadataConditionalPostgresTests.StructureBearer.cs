@@ -5,6 +5,7 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using NetTopologySuite.Geometries;
 using Wayfarer.Models;
+using Wayfarer.Models.Dtos;
 using Wayfarer.Services.TripMetadataReceipts;
 using Wayfarer.Tests.Infrastructure;
 using Xunit;
@@ -36,8 +37,10 @@ public sealed partial class TripMetadataConditionalPostgresTests
         Assert.Equal(HttpStatusCode.OK, ownerReply.StatusCode);
         var storedRegion = (await ownerReply.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("regions")[0];
         var center = storedRegion.GetProperty("center");
-        Assert.Equal(91, center[1].GetDouble());
-        Assert.Equal(181, center[0].GetDouble());
+        var savedCenter = await db.Regions.Where(row => row.Id == region.Id).Select(row => row.Center).SingleAsync();
+        Assert.NotNull(savedCenter);
+        Assert.Equal(savedCenter.Y, center[1].GetDouble());
+        Assert.Equal(savedCenter.X, center[0].GetDouble());
         var storedPlace = storedRegion.GetProperty("places")[0];
 
         var regionRoute = endpoint + $"/conditional/regions/{region.Id}/receipt";
@@ -75,6 +78,17 @@ public sealed partial class TripMetadataConditionalPostgresTests
 
     /// <summary>Converts the bearer read pair into the required mutation field names.</summary>
     private static object Coordinates(JsonElement point) => new { longitude = point[0], latitude = point[1] };
+
+    /// <summary>Historical finite originals can be compared even outside the desired coordinate bounds.</summary>
+    [Fact]
+    public async Task StructureReceipt_BearerHistoricalCenterParserAllowsComparison()
+    {
+        const string body = """{"expected":{"center":{"latitude":91,"longitude":181}},"changes":{"center":null}}""";
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes(body));
+        var request = await RegionConditionalRequest.ReadAsync(stream, false, default, protectedWrite: true);
+        Assert.Equal(new RegionConditionalCenter(91, 181), request.Expected["center"]);
+        Assert.Null(request.Changes["center"]);
+    }
 
     /// <summary>Checks the published Region deletion framing and the digest that binds exact polygon rings.</summary>
     [Fact]

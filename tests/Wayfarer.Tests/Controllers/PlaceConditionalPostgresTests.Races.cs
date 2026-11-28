@@ -184,11 +184,14 @@ public sealed partial class PlaceConditionalPostgresTests
     /// <summary>Injects loss before or after the real transaction commit without introducing a receipt/retry facility.</summary>
     private sealed class FailPlaceCommit(bool afterCommit) : DbTransactionInterceptor
     {
+        /// <summary>Leaves permit issuance and read transactions unmodified when testing protected apply.</summary>
+        internal bool Armed { get; set; } = true;
+
         public override ValueTask<InterceptionResult> TransactionCommittingAsync(DbTransaction transaction, TransactionEventData data,
-            InterceptionResult result, CancellationToken cancellationToken = default) => afterCommit
+            InterceptionResult result, CancellationToken cancellationToken = default) => !Armed || afterCommit
                 ? ValueTask.FromResult(result) : throw new IOException("Controlled precommit failure");
         public override Task TransactionCommittedAsync(DbTransaction transaction, TransactionEndEventData data, CancellationToken cancellationToken = default) =>
-            afterCommit ? throw new IOException("Controlled loss of commit acknowledgement") : Task.CompletedTask;
+            Armed && afterCommit ? throw new IOException("Controlled loss of commit acknowledgement") : Task.CompletedTask;
     }
 
     /// <summary>Captures actual property footprints and connection IDs without logging private parameter values.</summary>

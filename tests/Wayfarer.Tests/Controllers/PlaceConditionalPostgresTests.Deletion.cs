@@ -163,15 +163,24 @@ public sealed partial class PlaceConditionalPostgresTests
         var g = await RegionDeletionTestGraph.SeedAsync(fixture);
         await using var db = fixture.CreateContext(); await AddCredentialAsync(db, g.UserId);
         var place = await db.Places.Include(p => p.Region).SingleAsync(p => p.Id == g.PlaceIds[0]);
-        await using var app = await StartAsync(db, [new FailPlaceCommit(committed)]); using var web = await WebAsync(app, g.UserId);
+        var failure = new FailPlaceCommit(committed) { Armed = false };
+        await using var app = await StartAsync(db, [failure]); using var web = await WebAsync(app, g.UserId);
         var path = DeletionPath(place, true); var preview = await DeletionPreviewAsync(web, path);
         var before = await GraphStateAsync(g.TripId); var rows = await StoredStructureRowsAsync(g.TripId);
-        using var response = await DispatchPlaceDeletionAsync(web, place, true, new { confirmationToken = preview.Confirmation.Token });
+        var route = path + "/deletion/receipt";
+        var body = JsonSerializer.Serialize(new { receiptContract = TripMetadataIdentity.StructureVersion, confirmationToken = preview.Confirmation.Token });
+        var permit = await TripMetadataReceiptHttp.IssueTypedAsync(web, PlaceDeletionIdentity(place), route, body);
+        failure.Armed = true;
+        using var response = await TripMetadataReceiptHttp.SendAsync(web, HttpMethod.Post, route, permit, body);
+        failure.Armed = false;
         Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
         await using var verify = fixture.CreateContext();
         Assert.Equal(!committed, await verify.Places.AnyAsync(p => p.Id == place.Id));
         if (!committed) { Assert.Equal(before, await GraphStateAsync(g.TripId)); Assert.Equal(rows, await StoredStructureRowsAsync(g.TripId)); }
         else Assert.Null((await verify.PlaceVisitEvents.SingleAsync(v => v.TripIdSnapshot == g.TripId)).PlaceId);
+        using var lookup = await TripMetadataReceiptHttp.SendAsync(web, HttpMethod.Get,
+            route + "/operations/" + permit.GetProperty("operationId").GetString(), permit, null);
+        await TripMetadataReceiptHttp.EvidenceAsync(lookup, permit, committed ? "applied" : "unobserved");
     }
 
     /// <summary>A real committed envelope can be lost in HTTP transport; graph absence supplies no deletion receipt.</summary>
@@ -213,11 +222,14 @@ public sealed partial class PlaceConditionalPostgresTests
     {
         var path = DeletionPath(place, web) + "/deletion";
         if (!web) return client.PostAsJsonAsync(path, payload);
-        var identity = new TripMetadataIdentity(TripMetadataIdentity.StructureVersion, place.UserId, "web",
-            "place-delete", place.Region.TripId, "", Guid.Empty, default) { Target = new("place", place.Id) };
-        return TripMetadataReceiptHttp.DispatchTypedAsync(client, identity, HttpMethod.Post, path + "/receipt",
+        return TripMetadataReceiptHttp.DispatchTypedAsync(client, PlaceDeletionIdentity(place), HttpMethod.Post, path + "/receipt",
             JsonSerializer.Serialize(payload, JsonSerializerOptions.Web));
     }
+
+    /// <summary>Uses one typed identity for confirmed deletion, recovery and exact replay.</summary>
+    private static TripMetadataIdentity PlaceDeletionIdentity(Place place) =>
+        new(TripMetadataIdentity.StructureVersion, place.UserId, "web",
+            "place-delete", place.Region.TripId, "", Guid.Empty, default) { Target = new("place", place.Id) };
 
     private static string DeletionPath(Place p, bool web) => $"/api/trips/{p.Region.TripId}/{(web ? "editor" : "conditional")}/places/{p.Id}";
     private static async Task<PlaceDeletionPreviewDto> DeletionPreviewAsync(HttpClient client, string path)
