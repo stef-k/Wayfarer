@@ -4850,4 +4850,5 @@
   <data name="Editor.StructureRegionOrder" xml:space="preserve"><value>Αποθηκευμένη σειρά περιοχών</value></data>
   <data name="Editor.StructurePlaceOrder" xml:space="preserve"><value>Αποθηκευμένη σειρά τοποθεσιών</value></data>
   <data name="Editor.StructureAreaOrder" xml:space="preserve"><value>Αποθηκευμένη σειρά ζωνών</value></data>
+  <data name="Editor.StructureCurrentRegion" xml:space="preserve"><value>Τρέχουσα περιοχή</value></data>
 </root>

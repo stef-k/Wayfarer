@@ -7,6 +7,7 @@ import { discardStructure, emptyStructure, observeStructure, settleStructure, ta
 import { legacyRegionHold, legacyRegionHoldKey, structureCustodyChanged, structureOwnerLost } from './structureMutation';
 import { readStructureOwner, StructureOwnerUnavailable } from './structureOwner';
 import { object } from './receiptStructureResults';
+import { isId } from './structureRoutes';
 import type { EditorTripState } from '../types';
 import type { Evidence, TerminalState } from './receiptApi';
 
@@ -14,7 +15,7 @@ const props = defineProps<{ account: string; tripId: string; endpoint: string; s
 const workspaceError = inject(metadataWorkspaceError, null);
 const row = shallowRef<Custody | null>(null);
 const graph = shallowRef<EditorTripState | null>(null);
-const legacy = ref(false);
+const legacy = ref<string | null>(null);
 const error = ref('');
 const busy = ref(false);
 let mounted = true;
@@ -26,10 +27,19 @@ const histories = computed(() => Object.entries(custody.value.outcomes)
 watch(() => [props.account, props.tripId, props.endpoint], () => {
   row.value = null;
   graph.value = null;
-  legacy.value = false;
+  legacy.value = null;
   error.value = '';
   void refresh();
 }, { flush: 'sync' });
+
+/** Reads only the old target identity for a read-only comparison; malformed holds remain visible. */
+const legacySource = computed(() => {
+  if (!legacy.value) return null;
+  try {
+    const value: unknown = JSON.parse(legacy.value);
+    return object(value) && isId(value.sourceId) ? value.sourceId : null;
+  } catch { return null; }
+});
 
 const drafts = computed(() => Object.entries(custody.value.drafts));
 const visible = computed(() => !!error.value || legacy.value || histories.value.length || drafts.value.length ||
@@ -40,7 +50,7 @@ async function refresh(): Promise<void> {
   const { account, tripId, endpoint } = props;
   const current = (): boolean => mounted && props.account === account && props.tripId === tripId && props.endpoint === endpoint;
   try {
-    const hold = !!legacyRegionHold(account, tripId);
+    const hold = legacyRegionHold(account, tripId);
     const stored = await readCustody(account, tripId);
     if (!current()) return;
     legacy.value = hold;
@@ -95,9 +105,9 @@ async function discard(key: string): Promise<void> {
 
 /** A local acknowledgement of an earlier proofless hold cannot authorize another deletion. */
 function dismissLegacy(): void {
-  if (!graph.value) return;
+  if (!graph.value || legacyRegionHold(props.account, props.tripId) !== legacy.value) return;
   localStorage.removeItem(legacyRegionHoldKey(props.account, props.tripId));
-  legacy.value = false;
+  legacy.value = null;
   window.dispatchEvent(new Event('region-deletion-hold'));
 }
 
@@ -182,6 +192,12 @@ onUnmounted(() => {
     </p>
     <p v-if="legacy" class="mb-1">
       {{ message('Editor.StructureLegacyHold', 'An earlier Region deletion has no recoverable receipt.') }}
+      <span v-if="graph && legacySource" class="d-block">
+        {{ graph.regionsById[legacySource]
+          ? message('Editor.StructureCurrentRegion', 'Current Region') + ' · ' + graph.regionsById[legacySource].name
+          : message('Editor.StructureTargetUnavailable', 'The original target is no longer available.') }}
+        <span class="text-break">{{ legacySource }}</span>
+      </span>
       <button v-if="graph" type="button" class="btn btn-sm btn-outline-secondary" @click="dismissLegacy">
         {{ message('Editor.StructureDismiss', 'Dismiss notice') }}
       </button>

@@ -4850,4 +4850,5 @@
   <data name="Editor.StructureRegionOrder" xml:space="preserve"><value>Saved Region order</value></data>
   <data name="Editor.StructurePlaceOrder" xml:space="preserve"><value>Saved Place order</value></data>
   <data name="Editor.StructureAreaOrder" xml:space="preserve"><value>Saved Area order</value></data>
+  <data name="Editor.StructureCurrentRegion" xml:space="preserve"><value>Current Region</value></data>
 </root>
